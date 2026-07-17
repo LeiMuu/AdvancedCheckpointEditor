@@ -410,6 +410,21 @@ function googleTranslateElementInit(){
       </div>
     </section>
 
+    <!-- 1b Custom Fire Support library -->
+    <section class="panel" data-panel="firesupportlib">
+      <div class="panel-head">
+        <h2>自訂火力支援（CustomFireSupport）</h2>
+        <p>登錄自訂的火力支援資源路徑（索引由 11 起自動編號，0–10 為官方內建）。這是純粹的資源庫定義，跟「AI 兵種」分頁的 CustomAISoldierClasses 屬性一樣——只要有登錄項目，就一定會輸出到設定檔，不受「反擊機制」是否啟用影響，因為「威脅火力支援」與「HQ 火力支援」兩個分頁也會共用這份清單。</p>
+      </div>
+
+      <div class="card">
+        <h3>自訂火力支援清單</h3>
+        <p class="sub">索引由 11 起自動編號（0–10 為官方內建，詳見下方參考表）。可用下方選單快速套用常見模組的火力支援包，或手動貼上其他模組的完整路徑。</p>
+        <div id="customFireSupportList"></div>
+        <div class="hint" id="builtinFsRef"></div>
+      </div>
+    </section>
+
     <!-- 2 Bot Soldiers Obj -->
     <section class="panel" data-panel="checkpoints">
       <div class="panel-head">
@@ -478,13 +493,6 @@ function googleTranslateElementInit(){
           <div class="fld"><label>反擊結束後剩餘時間（秒）<span class="range">120–900</span></label><input type="number" id="afterRoundTime" min="120" max="900"></div>
         </div>
         <label class="checkline"><input type="checkbox" id="respawnAfter"> 反擊結束後重生已陣亡玩家（RespawnTeamAfterReCounterAttack）</label>
-      </div>
-
-      <div class="card">
-        <h3>自訂火力支援（CustomFireSupport）</h3>
-        <p class="sub">索引由 11 起自動編號（0–10 為官方內建，詳見下方參考表）。</p>
-        <div id="customFireSupportList"></div>
-        <div class="hint" id="builtinFsRef"></div>
       </div>
 
       <div class="card">
@@ -895,6 +903,30 @@ const PRESET_CLASSES = [
   ]}
 ];
 
+const PRESET_FIRE_SUPPORTS = [
+  {group:"Fire Supports: Thermobarics & Co", paths:[
+    {path:"/FS/Scripts/FireSupport_MRSI.FireSupport_MRSI", name:"TOT (Time-On-Target Mortars)"},
+    {path:"/FS/Scripts/FireSupport_GBU.FireSupport_GBU", name:"JDAM (Joint Direct Attack Munition)"},
+    {path:"/FS/Scripts/FireSupport_Hind.FireSupport_Hind", name:"Hind (Mil Mi-24)"},
+    {path:"/FS/Scripts/FireSupport_Thermo.FireSupport_Thermo", name:"Thermo (Thermobaric Munitions)"},
+    {path:"/FS/Scripts/FireSupport_Onslaught.FireSupport_Onslaught", name:"Rocket Onslaught"},
+    {path:"/FS/Scripts/FireSupport_Carpet.FireSupport_Carpet", name:"Carpet bombing"},
+    {path:"/FS/Scripts/FireSupport_W48.FireSupport_W48", name:"Nuclear Artillery Shell (Habibi, Salvation!)"},
+    {path:"/FS/Scripts/FireSupport_Drone_Haze.FireSupport_Drone_Haze", name:"Haze (Deadly corrosive gas deployed by drones)"}
+  ]},
+  {group:"Deadlier Fire supports & Enemies", paths:[
+    {path:"/A10/Data/FireSupport/Sup/Bird/FireSupport_MyApacheRocket_SUB.FireSupport_MyApacheRocket_SUB", name:"Bird (MH-6 Little Bird)"},
+    {path:"/A10/Data/FireSupport/INS/FireSupport_Drone_KillerDrone_MOD.FireSupport_Drone_KillerDrone_MOD", name:"KillerDrone (Drone with Dshk?!)"},
+    {path:"/A10/Data/FireSupport/INS/FireSupport_Ka52_MOD.FireSupport_Ka52_MOD", name:"Ka52"},
+    {path:"/A10/Data/FireSupport/INS/FireSupport_MI8_MOD.FireSupport_MI8_MOD", name:"Mi-8 (Shahed-136 Kamikaze Drone)"},
+    {path:"/A10/Data/FireSupport/INS/FireSupport_RocketSCUD_BOT.FireSupport_RocketSCUD_BOT", name:"SCUD (SCUD Missiles)"},
+    {path:"/A10/Data/FireSupport/INS/FireSupport_Shahed_MOD.FireSupport_Shahed_MOD", name:"Shahed (Shahed-136 Kamikaze Drone)"},
+    {path:"/A10/Data/FireSupport/SEC/FireSupport_AC130.FireSupport_AC130", name:"AC-130 (Lockheed AC-130 Gunship)"},
+    {path:"/A10/Data/FireSupport/SEC/FireSupport_MyMLRS_BOT.FireSupport_MyMLRS_BOT", name:"MLRS (Multiple Launch Rocket System, Cluster munition)"},
+    {path:"/A10/Data/FireSupport/SEC/FireSupport_MyUAV_BOT.FireSupport_MyUAV_BOT", name:"UAV (MQ-9 Reaper)"}
+  ]}
+];
+
 const DEFAULT_MSGS = {
   will_center: "The enemy looks quite treacherous, We must check the next point as soon as possible to avoid a Re-CounterAttack.",
   will_text: "The enemy looks quite treacherous, We must check the next point as soon as possible to avoid a Re-CounterAttack.",
@@ -1224,6 +1256,7 @@ function renderCmdMapList(containerId, arr){
 const TABS = [
   {id:"basic", label:"基本設定"},
   {id:"aiclasses", label:"AI 兵種"},
+  {id:"firesupportlib", label:"自訂火力支援"},
   {id:"checkpoints", label:"據點兵力配置"},
   {id:"recounter", label:"反擊機制"},
   {id:"spawnarm", label:"據點軍需品"},
@@ -1237,6 +1270,7 @@ let currentTab = "basic";
 function isSectionActive(id){
   switch(id){
     case "aiclasses": return state.ai.custom.length>0 || [0,1,2,3,4,5].some(function(i){return state.ai.removeSets[i].length>0;}) || [0,1,2,3,4,5].some(function(i){return state.ai.containSets[i].length>0;}) || state.ai.tips.length>0;
+    case "firesupportlib": return state.re.customFS.length>0;
     case "checkpoints": {
       if (state.bot.friendlyIds.length>0 || state.bot.friendlyCRS!==-1 || state.bot.friendlyRCC!==-1) return true;
       return Object.keys(state.bot.labels).some(function(k){
@@ -1472,6 +1506,41 @@ function renderCheckpointDetail(){
 }
 
 /* ---- 反擊機制 ---- */
+/* ---- 自訂火力支援庫（獨立分頁，不受反擊機制是否啟用影響）---- */
+function renderFireSupportLib(){
+  renderChipList("customFireSupportList", state.re.customFS, {
+    hideAddRow:true,
+    stacked:true,
+    placeholder:"貼上完整火力支援定義路徑",
+    presetOptions: PRESET_FIRE_SUPPORTS.map(function(g){ return {label: g.group + "（" + g.paths.length + " 個路徑）", value:g}; }),
+    onPreset: function(chosen){
+      const g = chosen.value;
+      g.paths.forEach(function(p){ state.re.customFS.push({path:p.path, name:p.name}); });
+    },
+    display:function(val){
+      const idx = state.re.customFS.indexOf(val);
+      return (11+idx) + " · " + (val.name||"") + " · " + val.path.split("/").pop();
+    },
+    onChange:function(){ renderFireSupportLib(); renderNav(); }
+  });
+  const fsWrap = $("customFireSupportList");
+  const fsRow = document.createElement("div");
+  fsRow.className = "chip-add-row"; fsRow.style.marginTop="6px";
+  fsRow.innerHTML = '<input class="chip-input" id="fsNameInput" placeholder="顯示名稱，如 MyMLRS"><input class="chip-input" id="fsPathInput" placeholder="完整路徑">';
+  const fsBtn = document.createElement("button");
+  fsBtn.type="button"; fsBtn.className="btn-small"; fsBtn.textContent="新增";
+  fsBtn.onclick = function(){
+    const name = $("fsNameInput").value.trim();
+    const path = $("fsPathInput").value.trim();
+    if (!path) return;
+    state.re.customFS.push({name:name, path:path});
+    renderFireSupportLib(); renderNav();
+  };
+  fsRow.appendChild(fsBtn);
+  fsWrap.appendChild(fsRow);
+  $("builtinFsRef").textContent = "內建 0–10：" + BUILTIN_FIRE_SUPPORTS.map(function(o){return o.idx+" "+o.name;}).join(", ");
+}
+
 function renderRecounter(){
   const objOptions = LETTERS.map(function(l,i){ return {idx:i, name:l}; });
   renderCheckboxGrid("reObjGrid", objOptions, state.re.useObj, function(){ renderNav(); updateBanner("reBanner","reBannerText", isSectionActive("recounter"), "已啟用 · " + state.re.useObj.length + " 個據點"); });
@@ -1509,32 +1578,6 @@ function renderRecounter(){
   on("defendTimer","input",function(e){ state.re.defendTimer = parseInt(e.target.value,10)||90; });
   on("afterRoundTime","input",function(e){ state.re.afterRoundTime = parseInt(e.target.value,10)||300; });
   on("respawnAfter","change",function(e){ state.re.respawnAfter = e.target.checked; });
-
-  renderChipList("customFireSupportList", state.re.customFS, {
-    hideAddRow:true,
-    stacked:true,
-    placeholder:"貼上完整火力支援定義路徑",
-    display:function(val){
-      const idx = state.re.customFS.indexOf(val);
-      return (11+idx) + " · " + (val.name||"") + " · " + val.path.split("/").pop();
-    }
-  });
-  const fsWrap = $("customFireSupportList");
-  const fsRow = document.createElement("div");
-  fsRow.className = "chip-add-row"; fsRow.style.marginTop="6px";
-  fsRow.innerHTML = '<input class="chip-input" id="fsNameInput" placeholder="顯示名稱，如 MyMLRS"><input class="chip-input" id="fsPathInput" placeholder="完整路徑">';
-  const fsBtn = document.createElement("button");
-  fsBtn.type="button"; fsBtn.className="btn-small"; fsBtn.textContent="新增";
-  fsBtn.onclick = function(){
-    const name = $("fsNameInput").value.trim();
-    const path = $("fsPathInput").value.trim();
-    if (!path) return;
-    state.re.customFS.push({name:name, path:path});
-    renderRecounter(); renderNav();
-  };
-  fsRow.appendChild(fsBtn);
-  fsWrap.appendChild(fsRow);
-  $("builtinFsRef").textContent = "內建 0–10：" + BUILTIN_FIRE_SUPPORTS.map(function(o){return o.idx+" "+o.name;}).join(", ");
 
   const rvWrap = $("revengeSetGroups");
   rvWrap.innerHTML = "";
@@ -1739,6 +1782,18 @@ function genAiClasses(){
   return lines;
 }
 
+/* 自訂火力支援：純資源庫定義，只要有登錄項目就一定輸出，不受「反擊機制」是否啟用影響
+   （威脅火力支援、HQ 火力支援都可能引用到這裡定義的索引，即使反擊機制本身沒開） */
+function genCustomFireSupport(){
+  if (!state.re.customFS.length) return [];
+  const lines = ["", ";Custom Fire Support"];
+  state.re.customFS.forEach(function(c,i){
+    lines.push(";"+(11+i)+(c.name?(" "+c.name):""));
+    lines.push("CustomFireSupport="+c.path);
+  });
+  return lines;
+}
+
 function genBotObj(){
   if (!isSectionActive("checkpoints")) return [];
   const lines = ["", ";Bot Soldiers Obj"];
@@ -1788,13 +1843,6 @@ function genRecounter(){
   lines.push("");
   lines.push("AfterReCounterAttackRoundTime="+state.re.afterRoundTime);
   lines.push("RespawnTeamAfterReCounterAttack="+(state.re.respawnAfter?"True":"False"));
-  if (state.re.customFS.length){
-    lines.push("");
-    state.re.customFS.forEach(function(c,i){
-      lines.push(";"+(11+i)+(c.name?(" "+c.name):""));
-      lines.push("CustomFireSupport="+c.path);
-    });
-  }
   lines.push("");
   for (let i=0;i<6;i++){
     if (state.re.revengeSets[i].length) lines.push("RevengeFireSupportSet"+i+"="+tuple(state.re.revengeSets[i]));
@@ -1919,6 +1967,7 @@ function generateINI(){
   let lines = [];
   lines = lines.concat(genHeader());
   lines = lines.concat(genAiClasses());
+  lines = lines.concat(genCustomFireSupport());
   lines = lines.concat(genBotObj());
   lines = lines.concat(genRecounter());
   lines = lines.concat(genSpawnArm());
@@ -1950,6 +1999,7 @@ function renderAll(){
   renderNav();
   renderBasic();
   renderAiClasses();
+  renderFireSupportLib();
   renderCheckpointsTab();
   renderRecounter();
   renderSpawnArm();
@@ -2143,7 +2193,11 @@ var DICT = {
   "反擊結束後剩餘時間（秒）": "Remaining Round Time After Counter Attack (sec)",
   "反擊結束後重生已陣亡玩家（RespawnTeamAfterReCounterAttack）": "Respawn dead players after the counter attack ends (RespawnTeamAfterReCounterAttack)",
   "自訂火力支援（CustomFireSupport）": "Custom Fire Support (CustomFireSupport)",
-  "索引由 11 起自動編號（0–10 為官方內建，詳見下方參考表）。": "Indices are auto-numbered starting at 11 (0\u201310 are official built-ins \u2014 see the reference below).",
+  "自訂火力支援": "Custom Fire Support",
+  "登錄自訂的火力支援資源路徑（索引由 11 起自動編號，0–10 為官方內建）。這是純粹的資源庫定義，跟「AI 兵種」分頁的 CustomAISoldierClasses 屬性一樣——只要有登錄項目，就一定會輸出到設定檔，不受「反擊機制」是否啟用影響，因為「威脅火力支援」與「HQ 火力支援」兩個分頁也會共用這份清單。":
+    "Register custom fire support resource paths here (auto-indexed starting at 11; 0\u201310 are official built-ins). This is a pure resource-library definition, just like CustomAISoldierClasses in the \u201CAI Classes\u201D tab \u2014 as long as an entry exists here, it will always be output to the config file, regardless of whether Counter Attack itself is enabled, since the \u201CThreat Fire Support\u201D and \u201CHQ Fire Support\u201D tabs share this same list too.",
+  "自訂火力支援清單": "Custom Fire Support List",
+  "索引由 11 起自動編號（0–10 為官方內建，詳見下方參考表）。可用下方選單快速套用常見模組的火力支援包，或手動貼上其他模組的完整路徑。": "Indices are auto-numbered starting at 11 (0\u201310 are official built-ins \u2014 see the reference below). Use the dropdown below to quickly apply fire support packs from common mods, or manually paste a full path from another mod.",
   "貼上完整火力支援定義路徑": "Paste a full fire support definition path",
   "顯示名稱，如 MyMLRS": "Display name, e.g. MyMLRS",
   "完整路徑": "Full path",
