@@ -68,6 +68,16 @@ input,select,textarea,button{font-family:var(--font-body);color:var(--text);}
 .field-inline{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-dim);}
 .field-inline select{background:var(--bg-input);border:1px solid var(--border);border-radius:4px;padding:5px 8px;font-size:12px;}
 
+.lang-toggle{display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;background:var(--bg-input);}
+.lang-btn{
+  appearance:none;border:none;background:transparent;color:var(--text-dim);
+  padding:5px 11px;font-size:12px;cursor:pointer;font-family:var(--font-body);
+  transition:background .15s,color .15s;
+}
+.lang-btn+.lang-btn{border-left:1px solid var(--border);}
+.lang-btn:hover{color:var(--text);}
+.lang-btn.active{background:var(--accent);color:#181a12;font-weight:600;}
+
 .btn{
   appearance:none;border:1px solid var(--border);background:var(--bg-elevated);
   color:var(--text);padding:7px 12px;border-radius:5px;font-size:12.5px;cursor:pointer;
@@ -140,12 +150,15 @@ input,select,textarea,button{font-family:var(--font-body);color:var(--text);}
 
 /* chip list */
 .chipwrap{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;min-height:8px;}
+.chipwrap.stacked{flex-direction:column;flex-wrap:nowrap;align-items:stretch;}
 .chip{
   display:inline-flex;align-items:center;gap:6px;background:var(--bg-elevated);
   border:1px solid var(--border);border-radius:20px;padding:4px 6px 4px 10px;
   font-size:12px;font-family:var(--font-mono);color:var(--text);max-width:100%;
 }
-.chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:340px;}
+.chipwrap.stacked .chip{width:100%;box-sizing:border-box;}
+.chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:340px;cursor:default;}
+.chipwrap.stacked .chip span{max-width:none;flex:1;min-width:0;}
 .chip .chip-x{
   border:none;background:var(--rust-soft);color:#e2a696;width:16px;height:16px;border-radius:50%;
   cursor:pointer;font-size:11px;line-height:1;flex:none;
@@ -218,6 +231,20 @@ footer.tip{max-width:900px;font-size:11.5px;color:var(--text-faint);margin-top:2
   .nav-item{flex:none;margin-bottom:0;margin-right:4px;}
   .content{padding:18px 16px 60px;}
 }
+
+/* ---- Google Translate widget: hide its default UI, we drive it via #langSelect ---- */
+#google_translate_element{ display:none !important; }
+.goog-te-banner-frame.skiptranslate,
+iframe.goog-te-banner-frame,
+.goog-te-gadget-icon,
+.goog-tooltip,
+.goog-tooltip:hover,
+.goog-text-highlight{
+  display:none !important;
+  background:none !important;
+  box-shadow:none !important;
+}
+body{ top:0 !important; position:static !important; }
 </style>
 </head>
 <body>
@@ -234,11 +261,80 @@ footer.tip{max-width:900px;font-size:11.5px;color:var(--text-faint);margin-top:2
     模組實例
     <select id="instanceSelect"></select>
   </div>
+  <div class="field-inline" title="內建雙語切換：不需要網路，切換即時、不會遺失編輯內容">
+    介面語言
+    <div class="lang-toggle" id="langToggle">
+      <button type="button" class="lang-btn active" data-lang="zh">中文</button>
+      <button type="button" class="lang-btn" data-lang="en">EN</button>
+    </div>
+  </div>
+  <div class="field-inline" title="由 Google 網頁翻譯小工具提供（Google 已於 2019 年終止官方支援，功能不保證長期可用，需要網路連線）">
+    其他語言
+    <select id="langSelect">
+      <option value="">原文（繁體中文）</option>
+      <option value="en">English</option>
+      <option value="ja">日本語</option>
+      <option value="ko">한국어</option>
+      <option value="zh-CN">简体中文</option>
+      <option value="th">ภาษาไทย</option>
+      <option value="vi">Tiếng Việt</option>
+      <option value="es">Español</option>
+      <option value="fr">Français</option>
+      <option value="de">Deutsch</option>
+      <option value="ru">Русский</option>
+      <option value="pt">Português</option>
+      <option value="id">Bahasa Indonesia</option>
+    </select>
+  </div>
   <button class="btn" id="btnExportJson" title="將目前設定存成 JSON，方便下次繼續編輯">匯出設定 (JSON)</button>
   <button class="btn" id="btnImportJson">匯入設定 (JSON)</button>
   <input type="file" id="importFile" accept="application/json" style="display:none">
   <button class="btn danger" id="btnReset">重設全部</button>
+  <div id="google_translate_element"></div>
 </div>
+
+<script>
+// 這段獨立於下方主程式（不包在同一個 IIFE 內），因為 Google 的回呼函式
+// googleTranslateElementInit 必須是「全域」函式，Google 的 element.js 才呼叫得到。
+function googleTranslateElementInit(){
+  new google.translate.TranslateElement({
+    pageLanguage: 'zh-TW',
+    includedLanguages: 'en,ja,ko,zh-CN,th,vi,es,fr,de,ru,pt,id',
+    autoDisplay: false
+  }, 'google_translate_element');
+}
+(function(){
+  var sel = document.getElementById('langSelect');
+  function clearGoogTransCookie(){
+    var host = location.hostname;
+    document.cookie = 'googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    if (host) document.cookie = 'googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=.' + host + ';';
+  }
+  sel.addEventListener('change', function(){
+    var val = sel.value;
+    if (!val){
+      // Google 翻譯沒有乾淨的「還原成原文」機制，統一用清除 cookie + 重新整理處理。
+      // 重新整理會清空目前尚未匯出的編輯內容，因此在切回原文前，建議先用上方「匯出設定 (JSON)」保存。
+      clearGoogTransCookie();
+      location.reload();
+      return;
+    }
+    var tries = 0;
+    (function applyToCombo(){
+      var combo = document.querySelector('#google_translate_element select.goog-te-combo');
+      if (!combo){
+        tries++;
+        if (tries < 40){ setTimeout(applyToCombo, 250); }
+        else { alert(T('翻譯功能載入逾時，請確認網路連線後再試一次（此功能需要連上 translate.google.com）。')); }
+        return;
+      }
+      combo.value = val;
+      combo.dispatchEvent(new Event('change'));
+    })();
+  });
+})();
+</script>
+<script type="text/javascript" src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 
 <div class="shell">
   <nav class="nav" id="navList"></nav>
@@ -288,7 +384,7 @@ footer.tip{max-width:900px;font-size:11.5px;color:var(--text-faint);margin-top:2
         <h3>自訂兵種類別（CustomAISoldierClasses）</h3>
         <p class="sub">索引由 63 起依序自動編號。可用下方選單快速套用本模組內建的專屬兵種包（NightStalker、Warlord、SkullRogue…），或手動貼上其他模組的完整類別路徑。</p>
         <div id="aiCustomList"></div>
-        <div class="hint">目前索引範圍：<span id="aiCustomRange">（無）</span></div>
+        <div class="hint">目前索引範圍： <span id="aiCustomRange">（無）</span></div>
       </div>
 
       <div class="card">
@@ -297,7 +393,7 @@ footer.tip{max-width:900px;font-size:11.5px;color:var(--text-faint);margin-top:2
 
       <div class="card">
         <h3>兵種移除規則組（ClassesToRemoveSet 0–5）</h3>
-        <p class="sub">依「索引」比對移除，可填入上方自訂兵種索引，或其他模組 0–62 的既有索引。</p>
+        <p class="sub">依「索引」比對移除，從下拉選單挑選上方登錄的自訂兵種，或官方內建的 0–62 兵種類別。</p>
         <div id="removeSetGroups"></div>
       </div>
 
@@ -575,7 +671,7 @@ footer.tip{max-width:900px;font-size:11.5px;color:var(--text-faint);margin-top:2
 </div>
 
 <footer class="tip" style="max-width:1400px;margin-left:auto;margin-right:auto;padding-left:30px;padding-right:30px;">
-  提醒：<code>CustomAISoldierClasses</code> / <code>CustomFireSupport</code> 只是預先載入其他模組資源的路徑參照 — 目標模組仍必須實際安裝在伺服器上才會生效；每個集合內的元素不可重複。此工具僅在本機瀏覽器中運算與產生文字，不會上傳任何內容。
+  提醒： <code>CustomAISoldierClasses</code> / <code>CustomFireSupport</code> 只是預先載入其他模組資源的路徑參照 — 目標模組仍必須實際安裝在伺服器上才會生效；每個集合內的元素不可重複。此工具僅在本機瀏覽器中運算與產生文字，不會上傳任何內容。
 </footer>
 
 <script>
@@ -598,6 +694,73 @@ const SPAWN_ARMAMENT_TYPES = [
 
 const DOOR_TRAP_TYPES = [
   {idx:0,name:"ANM14"},{idx:1,name:"C4"},{idx:2,name:"F1"},{idx:3,name:"IED"},{idx:4,name:"M67"},{idx:5,name:"M84"},{idx:6,name:"Chemical"}
+];
+
+/* 官方／原版兵種索引表（0–62，各模組通用，順序依 Madbot 慣例固定不變） */
+const VANILLA_AI_CLASSES = [
+  {idx:0, group:"Vanilla", name:"PlayerClass_Insurgent_Coop_Bot_Advisor"},
+  {idx:1, group:"Vanilla", name:"PlayerClass_Insurgent_Coop_Bot_BreacherShotgun"},
+  {idx:2, group:"Vanilla", name:"PlayerClass_Insurgent_Coop_Bot_BreacherSMG"},
+  {idx:3, group:"Vanilla", name:"PlayerClass_Insurgent_Coop_Bot_Commander"},
+  {idx:4, group:"Vanilla", name:"PlayerClass_Insurgent_Coop_Bot_CommanderOutpost"},
+  {idx:5, group:"Vanilla", name:"PlayerClass_Insurgent_Coop_Bot_Demolitions"},
+  {idx:6, group:"Vanilla", name:"PlayerClass_Insurgent_Coop_Bot_Gunner"},
+  {idx:7, group:"Vanilla", name:"PlayerClass_Insurgent_Coop_Bot_Marksman"},
+  {idx:8, group:"Vanilla", name:"PlayerClass_Insurgent_Coop_Bot_Rifleman"},
+  {idx:9, group:"Elites", name:"PlayerClass_Insurgent_Coop_Bot_EliteBreacher"},
+  {idx:10, group:"Elites", name:"PlayerClass_Insurgent_Coop_Bot_EliteBreacherOutpost"},
+  {idx:11, group:"Elites", name:"PlayerClass_Insurgent_Coop_Bot_EliteDemolitions"},
+  {idx:12, group:"Elites", name:"PlayerClass_Insurgent_Coop_Bot_EliteDemolitionsOutpost"},
+  {idx:13, group:"Elites", name:"PlayerClass_Insurgent_Coop_Bot_EliteGunner"},
+  {idx:14, group:"Elites", name:"PlayerClass_Insurgent_Coop_Bot_EliteGunnerOutpost"},
+  {idx:15, group:"Elites", name:"PlayerClass_Insurgent_Coop_Bot_EliteMarksman"},
+  {idx:16, group:"Elites", name:"PlayerClass_Insurgent_Coop_Bot_EliteMarksmanOutpost"},
+  {idx:17, group:"Elites", name:"PlayerClass_Insurgent_Coop_Bot_EliteRiflemanNew"},
+  {idx:18, group:"Elites", name:"PlayerClass_Insurgent_Coop_Bot_EliteRiflemanNewOutpost"},
+  {idx:19, group:"Frenzy", name:"PlayerClass_Insurgent_Coop_Bot_FrenzyBasic"},
+  {idx:20, group:"Frenzy", name:"PlayerClass_Insurgent_Coop_Bot_FrenzyBasic_Survival"},
+  {idx:21, group:"Frenzy", name:"PlayerClass_Insurgent_Coop_Bot_SuicideBomber"},
+  {idx:22, group:"Frenzy", name:"PlayerClass_Insurgent_Coop_Bot_FrenzyBlinker"},
+  {idx:23, group:"Frenzy", name:"PlayerClass_Insurgent_Coop_Bot_FrenzyBruiser"},
+  {idx:24, group:"Frenzy", name:"PlayerClass_Insurgent_Coop_Bot_FrenzyFlamer"},
+  {idx:25, group:"Outpost", name:"PlayerClass_Insurgent_Coop_Bot_Outpost_Blaster"},
+  {idx:26, group:"Outpost", name:"PlayerClass_Insurgent_Coop_Bot_Outpost_Grenadier"},
+  {idx:27, group:"Outpost", name:"PlayerClass_Insurgent_Coop_Bot_Outpost_Grenadier2"},
+  {idx:28, group:"Outpost", name:"PlayerClass_Insurgent_Coop_Bot_Outpost_Grenadier3"},
+  {idx:29, group:"Outpost", name:"PlayerClass_Insurgent_Coop_Bot_Outpost_GrenadierExplosiveLauncher"},
+  {idx:30, group:"Outpost", name:"PlayerClass_Insurgent_Coop_Bot_Outpost_Molotover"},
+  {idx:31, group:"Outpost", name:"PlayerClass_Insurgent_Coop_Bot_Outpost_Ninja"},
+  {idx:32, group:"Outpost", name:"PlayerClass_Insurgent_Coop_Bot_Outpost_Sniper"},
+  {idx:33, group:"Mutators", name:"PlayerClass_AntiMaterielOnly"},
+  {idx:34, group:"Mutators", name:"PlayerClass_BoltActionOnly"},
+  {idx:35, group:"Mutators", name:"PlayerClass_BudgetAntiquing"},
+  {idx:36, group:"Mutators", name:"PlayerClass_FullyLoaded"},
+  {idx:37, group:"Mutators", name:"PlayerClass_Gunslinger"},
+  {idx:38, group:"Mutators", name:"PlayerClass_MakarovsOnly"},
+  {idx:39, group:"Mutators", name:"PlayerClass_PistolOnly"},
+  {idx:40, group:"Mutators", name:"PlayerClass_ShotgunOnly"},
+  {idx:41, group:"Mutators", name:"PlayerClass_WelrodOnly"},
+  {idx:42, group:"Security Vanilla", name:"PlayerClass_Security_Coop_Bot_Advisor"},
+  {idx:43, group:"Security Vanilla", name:"PlayerClass_Security_Coop_Bot_BreacherShotgun"},
+  {idx:44, group:"Security Vanilla", name:"PlayerClass_Security_Coop_Bot_BreacherSMG"},
+  {idx:45, group:"Security Vanilla", name:"PlayerClass_Security_Coop_Bot_Commander"},
+  {idx:46, group:"Security Vanilla", name:"PlayerClass_Security_Coop_Bot_Demolitions"},
+  {idx:47, group:"Security Vanilla", name:"PlayerClass_Security_Coop_Bot_Gunner"},
+  {idx:48, group:"Security Vanilla", name:"PlayerClass_Security_Coop_Bot_Marksman"},
+  {idx:49, group:"Security Vanilla", name:"PlayerClass_Security_Coop_Bot_Observer"},
+  {idx:50, group:"Security Vanilla", name:"PlayerClass_Security_Coop_Bot_Rifleman"},
+  {idx:51, group:"Security Elite", name:"PlayerClass_Security_Coop_Bot_EliteBreacher"},
+  {idx:52, group:"Security Elite", name:"PlayerClass_Security_Coop_Bot_EliteDemolitions"},
+  {idx:53, group:"Security Elite", name:"PlayerClass_Security_Coop_Bot_EliteGunner"},
+  {idx:54, group:"Security Elite", name:"PlayerClass_Security_Coop_Bot_EliteMarksman"},
+  {idx:55, group:"Security Elite", name:"PlayerClass_Security_Coop_Bot_EliteRifleman"},
+  {idx:56, group:"Counterattacks", name:"PlayerClass_Insurgent_Coop_Bot_MilitiaBoltActionRifleman"},
+  {idx:57, group:"Counterattacks", name:"PlayerClass_Insurgent_Coop_Bot_MilitiaBreacherShotgun"},
+  {idx:58, group:"Counterattacks", name:"PlayerClass_Insurgent_Coop_Bot_MilitiaBreacherSMG"},
+  {idx:59, group:"Counterattacks", name:"PlayerClass_Insurgent_Coop_Bot_MilitiaPistolier1"},
+  {idx:60, group:"Counterattacks", name:"PlayerClass_Insurgent_Coop_Bot_MilitiaPistolier2"},
+  {idx:61, group:"Counterattacks", name:"PlayerClass_Insurgent_Coop_Bot_MilitiaPistolier2Outpost"},
+  {idx:62, group:"Counterattacks", name:"PlayerClass_Insurgent_Coop_Bot_ObserverOutpost"}
 ];
 
 const P = "/AdvancedCheckpoint/PlayerClasses/";
@@ -672,15 +835,64 @@ const PRESET_CLASSES = [
     P+"Security/Coop/Bots/PlayerClass_Security_Coop_Bot_MountainTactical_Tavor.PlayerClass_Security_Coop_Bot_MountainTactical_Tavor"]},
   {group:"VIP SEC", paths:[
     P+"Security/Coop/Bots/PlayerClass_Security_Bot_VIP.PlayerClass_Security_Bot_VIP"]},
-  {group:"EBS PMC (EnemyBoatSpotted)", paths:[
-    "/EnemyBoatSpotted/Files/BotClasses/Ins/PMC/PlayerClass_Insurgent_Coop_JuggernautShotgun_PMC.PlayerClass_Insurgent_Coop_JuggernautShotgun_PMC",
-    "/EnemyBoatSpotted/Files/BotClasses/Ins/PMC/PlayerClass_Insurgent_Coop_JuggernautLMG_PMC.PlayerClass_Insurgent_Coop_JuggernautLMG_PMC",
-    "/EnemyBoatSpotted/Files/BotClasses/Ins/PMC/PlayerClass_Insurgent_Coop_JuggernautAMR_PMC.PlayerClass_Insurgent_Coop_JuggernautAMR_PMC",
-    "/EnemyBoatSpotted/Files/BotClasses/Ins/PMC/PlayerClass_Insurgent_Coop_Rifleman_PMC.PlayerClass_Insurgent_Coop_Rifleman_PMC"]},
-  {group:"VGKZ Theater", paths:[
-    "/VGKZ/Theater/ClassM_Bot/VG_Ins_Advisor.VG_Ins_Advisor",
-    "/VGKZ/Theater/ClassM_Bot/VG_Ins_Sniper.VG_Ins_Sniper",
-    "/VGKZ/Theater/ClassM_Bot/VG_InsE_Advisor.VG_InsE_Advisor"]}
+  {group:"OpNightmare", paths:[
+    {path:"/VGKZ/Theater/ClassM_Bot/VG_Ins_Adjutant.VG_Ins_Adjutant", label:"Black Mercenaries"},
+    {path:"/VGKZ/Theater/ClassM_Bot/VG_Ins_Breacher.VG_Ins_Breacher", label:"Black Mercenaries"},
+    {path:"/VGKZ/Theater/ClassM_Bot/VG_Ins_Commando.VG_Ins_Commando", label:"Black Skull Rogue(AKM Elite,Desert Eagle,M79)"},
+    {path:"/VGKZ/Theater/ClassM_Bot/VG_InsE_Commando.VG_InsE_Commando", label:"Black Skull Rogue(Rifle)"},
+    {path:"/VGKZ/Theater/ClassM_Bot/VG_Ins_Captain.VG_Ins_Captain", label:"Red NightStalker"},
+    {path:"/VGKZ/Theater/ClassM_Bot/VG_Ins_Markman.VG_Ins_Markman", label:"Gray"},
+    {path:"/VGKZ/Theater/ClassM_Bot/VG_Ins_Destroyer.VG_Ins_Destroyer", label:"Black Mercenaries(GL)"},
+    {path:"/VGKZ/Theater/ClassM_Bot/VG_Ins_Fighter.VG_Ins_Fighter", label:"Black Mercenaries"},
+    {path:"/VGKZ/Theater/ClassM_Bot/VG_Ins_Tanker.VG_Ins_Tanker", label:"NightStalker"},
+    {path:"/VGKZ/Theater/ClassM_Bot/VG_Ins_Sniper.VG_Ins_Sniper", label:"Black Skull Rogue(OSV-96)"}
+  ]},
+  {group:"EBS Custom Theatre", paths:[
+    {path:"/EnemyBoatSpotted/Files/BotClasses/Ins/PMC/PlayerClass_Insurgent_Coop_BreacherShotgun_PMC.PlayerClass_Insurgent_Coop_BreacherShotgun_PMC", label:"Ballistic Mask-PMC"},
+    {path:"/EnemyBoatSpotted/Files/BotClasses/Ins/PMC/PlayerClass_Insurgent_Coop_BreacherSMG_PMC.PlayerClass_Insurgent_Coop_BreacherSMG_PMC", label:"Combat goggles-PMC"},
+    {path:"/EnemyBoatSpotted/Files/BotClasses/Ins/PMC/PlayerClass_Insurgent_Coop_Commander_PMC.PlayerClass_Insurgent_Coop_Commander_PMC", label:"Black Mercenaries"},
+    {path:"/EnemyBoatSpotted/Files/BotClasses/Ins/PMC/PlayerClass_Insurgent_Coop_Demolitions_PMC.PlayerClass_Insurgent_Coop_Demolitions_PMC", label:"Black Mercenaries"},
+    {path:"/EnemyBoatSpotted/Files/BotClasses/Ins/PMC/PlayerClass_Insurgent_Coop_DemolitionsGL_PMC.PlayerClass_Insurgent_Coop_DemolitionsGL_PMC", label:"Black Mercenaries"},
+    {path:"/EnemyBoatSpotted/Files/BotClasses/Ins/PMC/PlayerClass_Insurgent_Coop_GhillieSniper_PMC.PlayerClass_Insurgent_Coop_GhillieSniper_PMC", label:"Ghillie"},
+    {path:"/EnemyBoatSpotted/Files/BotClasses/Ins/PMC/PlayerClass_Insurgent_Coop_JuggernautAMR_PMC.PlayerClass_Insurgent_Coop_JuggernautAMR_PMC", label:"Red Skull Rogue"},
+    {path:"/EnemyBoatSpotted/Files/BotClasses/Ins/PMC/PlayerClass_Insurgent_Coop_JuggernautLMG_PMC.PlayerClass_Insurgent_Coop_JuggernautLMG_PMC", label:"Red Skull Rogue"},
+    {path:"/EnemyBoatSpotted/Files/BotClasses/Ins/PMC/PlayerClass_Insurgent_Coop_JuggernautShotgun_PMC.PlayerClass_Insurgent_Coop_JuggernautShotgun_PMC", label:"Red Skull Rogue"},
+    {path:"/EnemyBoatSpotted/Files/BotClasses/Ins/PMC/PlayerClass_Insurgent_Coop_Marksman_PMC.PlayerClass_Insurgent_Coop_Marksman_PMC", label:"Black Mercenaries"},
+    {path:"/EnemyBoatSpotted/Files/BotClasses/Ins/PMC/PlayerClass_Insurgent_Coop_MarksmanM110_PMC.PlayerClass_Insurgent_Coop_MarksmanM110_PMC", label:"Black Mercenaries"},
+    {path:"/EnemyBoatSpotted/Files/BotClasses/Ins/PMC/PlayerClass_Insurgent_Coop_Observer_PMC.PlayerClass_Insurgent_Coop_Observer_PMC", label:"Black Mercenaries"},
+    {path:"/EnemyBoatSpotted/Files/BotClasses/Ins/PMC/PlayerClass_Insurgent_Coop_Rifleman_PMC.PlayerClass_Insurgent_Coop_Rifleman_PMC", label:"Black Mercenaries"},
+    {path:"/EnemyBoatSpotted/Files/BotClasses/Ins/PMC/PlayerClass_Insurgent_Coop_SBR_PMC.PlayerClass_Insurgent_Coop_SBR_PMC", label:"Black Mercenaries"}
+  ]},
+  {group:"Deadlier Fire supports & Enemies", paths:[
+    {path:"/A10/Data/Class/INS/PlayerClass_Insurgent_bot_Coop_Commander_AllGuns_MOD_Special.PlayerClass_Insurgent_bot_Coop_Commander_AllGuns_MOD_Special", label:"NightStalker"},
+    {path:"/A10/Data/Class/INS/PlayerClass_Insurgent_bot_Coop_Commander_AllGuns_MOD.PlayerClass_Insurgent_bot_Coop_Commander_AllGuns_MOD", label:"Black Mercenaries-Skull Balaclava"},
+    {path:"/A10/Data/Class/INS/PlayerClass_Insurgent_Coop_Bot_Cleaner_MOD.PlayerClass_Insurgent_Coop_Bot_Cleaner_MOD", label:"Suicide Bomber Appearance (Main weapon may be customizable)"},
+    {path:"/A10/Data/Class/INS/PlayerClass_Insurgent_Coop_Bot_EliteBreacherOutpost_MOD.PlayerClass_Insurgent_Coop_Bot_EliteBreacherOutpost_MOD", label:"Black Skull Rogue"},
+    {path:"/A10/Data/Class/INS/PlayerClass_Insurgent_Coop_Bot_EliteDemolitions_MOD.PlayerClass_Insurgent_Coop_Bot_EliteDemolitions_MOD", label:"Black Mercenaries-Skull Balaclava"},
+    {path:"/A10/Data/Class/INS/PlayerClass_Insurgent_Coop_Bot_EliteDemolitionsOutpost_MOD.PlayerClass_Insurgent_Coop_Bot_EliteDemolitionsOutpost_MOD", label:"Blue camouflage rebel-PMC"},
+    {path:"/A10/Data/Class/INS/PlayerClass_Insurgent_Coop_Bot_EliteGunnerOutpost_MOD.PlayerClass_Insurgent_Coop_Bot_EliteGunnerOutpost_MOD", label:"Blue camouflage rebel-PMC"},
+    {path:"/A10/Data/Class/INS/PlayerClass_Insurgent_Coop_Bot_EliteMarksmanOutpost_MOD.PlayerClass_Insurgent_Coop_Bot_EliteMarksmanOutpost_MOD", label:"Blue camouflage rebel-PMC"},
+    {path:"/A10/Data/Class/INS/PlayerClass_Insurgent_Coop_Bot_EliteObserver_MOD.PlayerClass_Insurgent_Coop_Bot_EliteObserver_MOD", label:"Gray"},
+    {path:"/A10/Data/Class/INS/PlayerClass_Insurgent_Coop_Bot_EliteRiflemanNew_MOD.PlayerClass_Insurgent_Coop_Bot_EliteRiflemanNew_MOD", label:"Custom-made clothing"},
+    {path:"/A10/Data/Class/INS/PlayerClass_Insurgent_Coop_Bot_FrenzyBruiser_MOD.PlayerClass_Insurgent_Coop_Bot_FrenzyBruiser_MOD", label:"Bruiser(US12,Non-melee combat)"},
+    {path:"/A10/Data/Class/INS/PlayerClass_Insurgent_Coop_Bot_Outpost_Blaster_MOD.PlayerClass_Insurgent_Coop_Bot_Outpost_Blaster_MOD", label:"Ballistic Mask-Red camouflage"},
+    {path:"/A10/Data/Class/INS/PlayerClass_Insurgent_Coop_Bot_Outpost_Molotover_MOD.PlayerClass_Insurgent_Coop_Bot_Outpost_Molotover_MOD", label:"Uprising-Leather Jacket"},
+    {path:"/A10/Data/Class/INS/PlayerClass_Insurgent_Coop_Bot_Outpost_Ninja_MOD.PlayerClass_Insurgent_Coop_Bot_Outpost_Ninja_MOD", label:"Warlord-Short man"},
+    {path:"/A10/Data/Class/INS/PlayerClass_Insurgent_Coop_Bot_Rocketman_MOD.PlayerClass_Insurgent_Coop_Bot_Rocketman_MOD", label:"Chemical-RPG Soldiers"},
+    {path:"/A10/Data/Class/INS/PlayerClass_Insurgent_Coop_Bot_SuicideBomber_MOD.PlayerClass_Insurgent_Coop_Bot_SuicideBomber_MOD", label:"SEC-looking suicide bomber"}
+  ]},
+  {group:"W's Mod Set", paths:[
+    {path:"/NORINCO/Game/Factions/PlayerClasses/NorincoW02_Classes/Insurgent_Raw/Norinco_BOT_Coop_Raw/PlayerClass_Insurgent_Coop_Bot_Advisor_Raw_N.PlayerClass_Insurgent_Coop_Bot_Advisor_Raw_N", label:"Black Mercenaries-Glow Stick"},
+    {path:"/NORINCO/Game/Factions/PlayerClasses/NorincoW02_Classes/Insurgent_Raw/Norinco_BOT_Coop_Raw/PlayerClass_Insurgent_Coop_Bot_BreacherShotgun_Raw_N.PlayerClass_Insurgent_Coop_Bot_BreacherShotgun_Raw_N", label:"Black Mercenaries-Glow Stick"},
+    {path:"/NORINCO/Game/Factions/PlayerClasses/NorincoW02_Classes/Insurgent_Raw/Norinco_BOT_Coop_Raw/PlayerClass_Insurgent_Coop_Bot_BreacherSMG_Raw_N.PlayerClass_Insurgent_Coop_Bot_BreacherSMG_Raw_N", label:"Black Mercenaries-Glow Stick"},
+    {path:"/NORINCO/Game/Factions/PlayerClasses/NorincoW02_Classes/Insurgent_Raw/Norinco_BOT_Coop_Raw/PlayerClass_Insurgent_Coop_Bot_Commander_Raw_N.PlayerClass_Insurgent_Coop_Bot_Commander_Raw_N", label:"Black Mercenaries-Glow Stick"},
+    {path:"/NORINCO/Game/Factions/PlayerClasses/NorincoW02_Classes/Insurgent_Raw/Norinco_BOT_Coop_Raw/PlayerClass_Insurgent_Coop_Bot_Demolitions_Raw_N.PlayerClass_Insurgent_Coop_Bot_Demolitions_Raw_N", label:"Black Mercenaries-Glow Stick"},
+    {path:"/NORINCO/Game/Factions/PlayerClasses/NorincoW02_Classes/Insurgent_Raw/Norinco_BOT_Coop_Raw/PlayerClass_Insurgent_Coop_Bot_FrenzyBasic_Survival_Raw_N.PlayerClass_Insurgent_Coop_Bot_FrenzyBasic_Survival_Raw_N", label:"Black Mercenaries-Glow Stick"},
+    {path:"/NORINCO/Game/Factions/PlayerClasses/NorincoW02_Classes/Insurgent_Raw/Norinco_BOT_Coop_Raw/PlayerClass_Insurgent_Coop_Bot_Gunner_Raw_N.PlayerClass_Insurgent_Coop_Bot_Gunner_Raw_N", label:"Black Mercenaries-Glow Stick"},
+    {path:"/NORINCO/Game/Factions/PlayerClasses/NorincoW02_Classes/Insurgent_Raw/Norinco_BOT_Coop_Raw/PlayerClass_Insurgent_Coop_Bot_Marksman_Raw_N.PlayerClass_Insurgent_Coop_Bot_Marksman_Raw_N", label:"Black Mercenaries-Glow Stick"},
+    {path:"/NORINCO/Game/Factions/PlayerClasses/NorincoW02_Classes/Insurgent_Raw/Norinco_BOT_Coop_Raw/PlayerClass_Insurgent_Coop_Bot_Observer_Raw_N.PlayerClass_Insurgent_Coop_Bot_Observer_Raw_N", label:"Black Mercenaries-Glow Stick"},
+    {path:"/NORINCO/Game/Factions/PlayerClasses/NorincoW02_Classes/Insurgent_Raw/Norinco_BOT_Coop_Raw/PlayerClass_Insurgent_Coop_Bot_Rifleman_Raw_N.PlayerClass_Insurgent_Coop_Bot_Rifleman_Raw_N", label:"Black Mercenaries-Glow Stick"}
+  ]}
 ];
 
 const DEFAULT_MSGS = {
@@ -779,6 +991,17 @@ function getFireSupportOptions(){
 function getCustomClassOptions(){
   return state.ai.custom.map(function(c,i){ return {idx:63+i, path:c.path, label:c.label}; });
 }
+/* 合併「官方 0–62」與「自訂 63+」兩份兵種清單，供索引式移除規則的下拉選單使用 */
+function getVanillaAndCustomClassOptions(){
+  const custom = getCustomClassOptions().map(function(o){
+    return {idx:o.idx, group:"Custom (63+)", name:(o.label ? o.label+" \u00B7 " : "") + o.path.split("/").pop()};
+  });
+  return VANILLA_AI_CLASSES.concat(custom);
+}
+function classDisplayForIndex(idx){
+  const found = getVanillaAndCustomClassOptions().find(function(o){ return o.idx === idx; });
+  return found ? (idx + " \u00B7 " + found.name) : String(idx);
+}
 
 /* ---- 通用 chip list 元件 ---- */
 function renderChipList(containerId, arr, opts){
@@ -786,13 +1009,14 @@ function renderChipList(containerId, arr, opts){
   if(!container) return;
   container.innerHTML = "";
   const wrap = document.createElement("div");
-  wrap.className = "chipwrap";
+  wrap.className = "chipwrap" + (opts.stacked ? " stacked" : "");
   arr.forEach(function(val, idx){
     const chip = document.createElement("span");
     chip.className = "chip";
     const label = opts.display ? opts.display(val, idx) : String(val);
     const span = document.createElement("span");
     span.textContent = label;
+    span.title = label;
     chip.appendChild(span);
     const x = document.createElement("button");
     x.type = "button"; x.className = "chip-x"; x.textContent = "×";
@@ -842,6 +1066,50 @@ function renderChipList(containerId, arr, opts){
     };
     row.appendChild(sel);
   }
+  container.appendChild(row);
+}
+
+/* ---- 索引式兵種選擇清單（下拉式，取代手動輸入索引數字）----
+   內部仍然只操作純數字陣列 arr（跟舊版手動輸入的資料格式完全一致），
+   只是加入方式改成從下拉選單挑選官方 0–62 或自訂 63+ 的兵種。 */
+function renderIndexClassChipList(containerId, arr, onChange){
+  renderChipList(containerId, arr, {
+    hideAddRow: true,
+    stacked: true,
+    display: function(val){ return classDisplayForIndex(val); },
+    onChange: onChange
+  });
+  const container = $(containerId);
+  const row = document.createElement("div");
+  row.className = "chip-add-row";
+  row.style.marginTop = "6px";
+  const sel = document.createElement("select");
+  sel.className = "chip-preset-select";
+  sel.style.flex = "1"; sel.style.maxWidth = "none";
+  const all = getVanillaAndCustomClassOptions();
+  const groups = {}; const groupOrder = [];
+  all.forEach(function(o){
+    if (!groups[o.group]){ groups[o.group] = []; groupOrder.push(o.group); }
+    groups[o.group].push(o);
+  });
+  let html = '<option value="">' + "選擇兵種類別加入…" + '</option>';
+  groupOrder.forEach(function(g){
+    html += '<optgroup label="'+escapeHtml(g)+'">';
+    groups[g].forEach(function(o){
+      const already = arr.indexOf(o.idx) > -1;
+      html += '<option value="'+o.idx+'"'+(already?' disabled':'')+'>'+o.idx+' \u00B7 '+escapeHtml(o.name)+(already?'（已加入）':'')+'</option>';
+    });
+    html += '</optgroup>';
+  });
+  sel.innerHTML = html;
+  sel.onchange = function(){
+    if (sel.value === "") return;
+    const idx = parseInt(sel.value, 10);
+    if (arr.indexOf(idx) === -1) arr.push(idx);
+    renderIndexClassChipList(containerId, arr, onChange);
+    if (onChange) onChange();
+  };
+  row.appendChild(sel);
   container.appendChild(row);
 }
 
@@ -1030,11 +1298,15 @@ function renderBasic(){
 function renderAiClasses(){
   renderChipList("aiCustomList", state.ai.custom, {
     hideAddRow:true,
+    stacked:true,
     placeholder:"貼上完整類別路徑，例如 /Mod/Path.Path",
     presetOptions: PRESET_CLASSES.map(function(g){ return {label: g.group + "（" + g.paths.length + " 個路徑）", value:g}; }),
     onPreset: function(chosen){
       const g = chosen.value;
-      g.paths.forEach(function(p){ state.ai.custom.push({path:p, label:g.group}); });
+      g.paths.forEach(function(p){
+        if (typeof p === "string") state.ai.custom.push({path:p, label:g.group});
+        else state.ai.custom.push({path:p.path, label:p.label || g.group});
+      });
     },
     display: function(val){
       const idx = state.ai.custom.indexOf(val);
@@ -1081,10 +1353,7 @@ function renderAiClasses(){
     box.appendChild(listDiv);
     rsWrap.appendChild(box);
     (function(i){
-      renderChipList("rmset_"+i, state.ai.removeSets[i], {
-        type:"int", placeholder:"索引數字，如 63",
-        onChange:function(){ renderNav(); }
-      });
+      renderIndexClassChipList("rmset_"+i, state.ai.removeSets[i], function(){ renderNav(); });
     })(i);
   }
 
@@ -1110,7 +1379,7 @@ function renderAiClasses(){
   }
 
   renderChipList("enemyForceTips", state.ai.tips, {
-    type:"string", placeholder:'提示文字，如 [HQ]: Enemy reinforcements incoming!',
+    type:"string", stacked:true, placeholder:'提示文字，如 [HQ]: Enemy reinforcements incoming!',
     onChange:function(){ renderNav(); }
   });
 }
@@ -1119,11 +1388,7 @@ function renderAiClasses(){
 let currentCheckpointLabel = "Default";
 
 function renderCheckpointsTab(){
-  renderChipList("friendlyBlock", state.bot.friendlyIds, {
-    type:"int", placeholder:"兵種索引",
-    presetOptions: getCustomClassOptions().map(function(o){ return {label: o.idx+" · "+(o.label||o.path.split("/").pop()), value:o.idx}; }),
-    onChange:function(){ renderNav(); }
-  });
+  renderIndexClassChipList("friendlyBlock", state.bot.friendlyIds, function(){ renderNav(); });
   const fw = $("friendlyBlock");
   const crsRow = document.createElement("div");
   crsRow.className = "grid2"; crsRow.style.marginTop="10px";
@@ -1174,11 +1439,7 @@ function renderCheckpointDetail(){
   idsBox.className = "fld";
   idsBox.innerHTML = '<label>出現兵種（SoldiersObj'+key+'）</label><div id="cpIds"></div>';
   wrap.appendChild(idsBox);
-  renderChipList("cpIds", L.ids, {
-    type:"int", placeholder:"兵種索引",
-    presetOptions: getCustomClassOptions().map(function(o){ return {label:o.idx+" · "+(o.label||o.path.split("/").pop()), value:o.idx}; }),
-    onChange:function(){ renderNav(); renderCheckpointsTab(); }
-  });
+  renderIndexClassChipList("cpIds", L.ids, function(){ renderNav(); renderCheckpointsTab(); });
 
   const g = document.createElement("div");
   g.className = "grid3";
@@ -1224,10 +1485,7 @@ function renderRecounter(){
   on("reMax","input",function(e){ state.re.triggerMax = parseInt(e.target.value,10)||150; });
   on("reStrength","input",function(e){ state.re.strength = parseFloat(e.target.value)||3; });
 
-  renderChipList("surpriseBlock", state.re.surpriseBots, {
-    type:"int", placeholder:"兵種索引",
-    presetOptions: getCustomClassOptions().map(function(o){ return {label:o.idx+" · "+(o.label||o.path.split("/").pop()), value:o.idx}; })
-  });
+  renderIndexClassChipList("surpriseBlock", state.re.surpriseBots, undefined);
   $("surpriseNum").value = state.re.surpriseNum;
   on("surpriseNum","input",function(e){ state.re.surpriseNum = parseInt(e.target.value,10)||0; });
   renderChipList("disabledMaps", state.re.disabledMaps, {type:"string", placeholder:"地圖名稱關鍵字，如 Ministry"});
@@ -1254,6 +1512,7 @@ function renderRecounter(){
 
   renderChipList("customFireSupportList", state.re.customFS, {
     hideAddRow:true,
+    stacked:true,
     placeholder:"貼上完整火力支援定義路徑",
     display:function(val){
       const idx = state.re.customFS.indexOf(val);
@@ -1275,7 +1534,7 @@ function renderRecounter(){
   };
   fsRow.appendChild(fsBtn);
   fsWrap.appendChild(fsRow);
-  $("builtinFsRef").textContent = "內建 0–10：" + BUILTIN_FIRE_SUPPORTS.map(function(o){return o.idx+" "+o.name;}).join("、");
+  $("builtinFsRef").textContent = "內建 0–10：" + BUILTIN_FIRE_SUPPORTS.map(function(o){return o.idx+" "+o.name;}).join(", ");
 
   const rvWrap = $("revengeSetGroups");
   rvWrap.innerHTML = "";
@@ -1706,7 +1965,7 @@ on("btnCopy","click", function(){
   if (navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(text).then(function(){
       const btn = $("btnCopy"); const orig = btn.textContent;
-      btn.textContent = "已複製 ✓";
+      btn.textContent = T("已複製 ✓");
       setTimeout(function(){ btn.textContent = orig; }, 1200);
     }).catch(function(){ fallbackCopy(text); });
   } else { fallbackCopy(text); }
@@ -1743,20 +2002,390 @@ on("importFile","change", function(e){
       currentCheckpointLabel = "Default";
       renderAll();
     }catch(err){
-      alert("匯入失敗：JSON 格式不正確。");
+      alert(T("匯入失敗：JSON 格式不正確。"));
     }
   };
   reader.readAsText(file);
   e.target.value = "";
 });
 on("btnReset","click", function(){
-  if (!confirm("確定要清空所有設定嗎？此動作無法復原。")) return;
+  if (!confirm(T("確定要清空所有設定嗎？此動作無法復原。"))) return;
   state = freshState();
   currentCheckpointLabel = "Default";
   renderAll();
 });
 
+window.__appRenderAll = renderAll;
+
 renderAll();
+
+})();
+</script>
+
+<script>
+/* ==============================================================
+   內建雙語（中／英）字典切換
+   設計方式：介面的渲染邏輯（上面的主程式）一律只輸出繁體中文，
+   這裡不去改動渲染邏輯本身；而是在渲染完成後，對整個頁面的文字
+   節點做一次「找得到就換成英文」的掃描替換，並用 MutationObserver
+   持續監看後續變動（例如新增 chip、切換分頁）即時翻譯。
+   切回中文時，直接呼叫主程式的 renderAll() 重新以中文渲染一次，
+   保證完全還原、不需要反向字典。
+   這個機制不需要網路連線，也不會發送任何資料出去。
+   ============================================================== */
+(function(){
+"use strict";
+
+var currentLang = "zh";
+var ORIGINAL_TITLE = document.title;
+var EXCLUDE_IDS = { outputArea:true, outStat:true };
+
+/* 完整字典：繁體中文原文 -> 英文譯文（僅供介面文字使用，不影響輸出的 .ini 內容） */
+var DICT = {
+  // Topbar
+  "模組實例": "Mutator Instance",
+  "介面語言": "Interface Language",
+  "其他語言": "More Languages",
+  "匯出設定 (JSON)": "Export Config (JSON)",
+  "匯入設定 (JSON)": "Import Config (JSON)",
+  "重設全部": "Reset All",
+  "將目前設定存成 JSON，方便下次繼續編輯": "Save your current settings as JSON so you can continue editing later",
+  "由 Google 網頁翻譯小工具提供（Google 已於 2019 年終止官方支援，功能不保證長期可用，需要網路連線）": "Powered by Google's website translator widget (officially discontinued by Google in 2019; not guaranteed to keep working, requires an internet connection)",
+  "內建雙語切換：不需要網路，切換即時、不會遺失編輯內容": "Built-in bilingual toggle: no internet needed, switches instantly, never loses your edits",
+  "原文（繁體中文）": "Original (Traditional Chinese)",
+
+  // Nav labels (short form)
+  "基本設定": "Basic Setup",
+  "AI 兵種": "AI Classes",
+  "據點兵力配置": "Checkpoint Forces",
+  "反擊機制": "Counter Attack",
+  "據點軍需品": "Spawn Armaments",
+  "門陷阱": "Door Traps",
+  "威脅火力支援": "Threat Fire Support",
+  "HQ 火力支援": "HQ Fire Support",
+  "輸出 .ini": "Output .ini",
+
+  // Panel: Basic
+  "選擇要編輯的 Mutator 實例（同一伺服器可疊加多組 AdvancedCheckpoint 設定），並可為這份設定加上標題註解。編輯完成後，切換到左側「輸出 .ini」分頁即可取得完整設定檔文字。":
+    "Choose which Mutator instance you're editing (a single server can stack multiple AdvancedCheckpoint configs), and optionally add a title comment. When you're done, switch to the \u201COutput .ini\u201D tab on the left to get the full config text.",
+  "Mutator 區塊": "Mutator Section",
+  "目前編輯中的區塊": "Currently editing section",
+  "標題註解（選填，會顯示在檔案最上方）": "Title comment (optional, shown at the top of the file)",
+  "例如：SkullRogue + Juggernaut + Warlord Invasion": "e.g. SkullRogue + Juggernaut + Warlord Invasion",
+  "Escort Mission 相容開關": "Escort Mission Compatibility",
+  "VIP 護送模式使用自成一套的據點邏輯；若你的模式是 VIP 護送任務，需開啟此項，AISoldier Classes / Bot Soldiers Obj 才會正常套用。":
+    "VIP escort missions use their own separate checkpoint logic. If your mode is a VIP escort mission, enable this so AISoldier Classes / Bot Soldiers Obj apply correctly.",
+  "UseSoldiersObjMod（此為 VIP 護送模式）": "UseSoldiersObjMod (this is a VIP escort mission)",
+  "使用流程": "Workflow",
+  "1. 在「AI 兵種」分頁登錄自訂兵種路徑（或套用預設兵種包）。": "1. Register custom soldier class paths in the \u201CAI Classes\u201D tab (or apply a preset class pack).",
+  "2. 在「據點兵力配置」分頁，用字母轉盤選擇要設定的據點，指定該點會出現哪些兵種、套用哪組移除規則。": "2. In the \u201CCheckpoint Forces\u201D tab, use the letter dial to pick a checkpoint and set which classes appear there and which removal rules apply.",
+  "3. 視需求開啟反擊機制 / 軍需品 / 門陷阱 / 威脅火力 / HQ 火力支援。": "3. Enable Counter Attack / Spawn Armaments / Door Traps / Threat Fire Support / HQ Fire Support as needed.",
+  "4. 到「輸出 .ini」分頁複製或下載成品，貼進伺服器的 Mutators.ini。": "4. Go to the \u201COutput .ini\u201D tab to copy or download the result, then paste it into your server's Mutators.ini.",
+
+  // Panel: AI classes
+  "AI 兵種設定（AISoldier Classes）": "AI Soldier Classes (AISoldier Classes)",
+  "登錄自訂兵種類別路徑（索引由 63 開始自動編號）、設定兵種移除規則組，以及戰情提示訊息（EnemyForceTips）。這些內容會被「據點兵力配置」與「反擊機制」分頁引用。":
+    "Register custom soldier class paths (auto-indexed starting at 63), set up class-removal rule groups, and write battlefield tip messages (EnemyForceTips). These are referenced by the \u201CCheckpoint Forces\u201D and \u201CCounter Attack\u201D tabs.",
+  "自訂兵種類別（CustomAISoldierClasses）": "Custom Soldier Classes (CustomAISoldierClasses)",
+  "索引由 63 起依序自動編號。可用下方選單快速套用本模組內建的專屬兵種包（NightStalker、Warlord、SkullRogue…），或手動貼上其他模組的完整類別路徑。":
+    "Indices are auto-numbered starting at 63. Use the dropdown below to quickly apply this mod's built-in exclusive class packs (NightStalker, Warlord, SkullRogue\u2026), or manually paste full class paths from other mods.",
+  "貼上完整類別路徑，例如 /Mod/Path.Path": "Paste a full class path, e.g. /Mod/Path.Path",
+  "手動貼上完整類別路徑（例如其他模組的兵種）": "Manually paste a full class path (e.g. a class from another mod)",
+  "新增路徑": "Add Path",
+  "目前索引範圍：": "Current index range:",
+  "（無）": "(none)",
+  "UseClassChangeHint（在畫面上顯示兵種替換除錯訊息）": "UseClassChangeHint (show class-swap debug messages on screen)",
+  "兵種移除規則組（ClassesToRemoveSet 0–5）": "Class Removal Rule Groups (ClassesToRemoveSet 0\u20135)",
+  "依「索引」比對移除，從下拉選單挑選上方登錄的自訂兵種，或官方內建的 0–62 兵種類別。": "Removes by matching index \u2014 pick a custom class registered above from the dropdown, or an official built-in class 0\u201362.",
+  "索引數字，如 63": "Index number, e.g. 63",
+  "兵種移除規則組（RemoveClassesContaining 0–5）": "Class Removal Rule Groups (RemoveClassesContaining 0\u20135)",
+  "依「關鍵字」比對兵種名稱進行移除，較彈性，多數情況已足夠使用（例如 \"Rifleman\"、\"Marksman\"）。":
+    "Removes by matching a keyword against the class name \u2014 more flexible, and usually enough on its own (e.g. \"Rifleman\", \"Marksman\").",
+  "關鍵字，如 Rifleman": "Keyword, e.g. Rifleman",
+  "戰情提示（EnemyForceTips）": "Battlefield Tips (EnemyForceTips)",
+  "依序輸入提示文字，之後在「據點兵力配置」用 EFT 索引指定各據點顯示第幾則。支援 Rich Text 標籤，例如 <BoldCyan>…</>。":
+    "Enter tip messages in order; later, use the EFT index in \u201CCheckpoint Forces\u201D to pick which one shows at each checkpoint. Rich Text tags are supported, e.g. <BoldCyan>\u2026</>.",
+  "提示文字，如 [HQ]: Enemy reinforcements incoming!": "Tip text, e.g. [HQ]: Enemy reinforcements incoming!",
+  "兵種索引": "Class index",
+  "快速加入…": "Quick add\u2026",
+  "選擇兵種類別加入…": "Select a class to add\u2026",
+
+  // Panel: Checkpoints
+  "據點兵力配置（Bot Soldiers Obj）": "Checkpoint Forces (Bot Soldiers Obj)",
+  "用下方轉盤選擇 Default（預設）、CounterAttack（反擊時套用）或 A–Z 各據點，分別指定出現的兵種、套用的移除規則組，以及 EFT / RFS 索引。":
+    "Use the dial below to pick Default, CounterAttack (applied during a counter attack), or checkpoints A\u2013Z, and set which classes appear, which removal rule group applies, and the EFT / RFS index for each.",
+  "友軍替換（選填，不分據點）": "Friendly Replacement (optional, applies to all checkpoints)",
+  "選擇據點": "Select Checkpoint",
+
+  // Panel: Recounter
+  "反擊機制（Retaliatory Counter Attack）": "Counter Attack (Retaliatory Counter Attack)",
+  "玩家攻佔或防守據點後，若拖延過久未推進到下一點，將觸發敵軍反擊與復仇火力支援，可用於制裁蹲點行為。僅套用於可佔領據點。":
+    "After players capture or defend a checkpoint, stalling too long before advancing triggers an enemy counter attack and revenge fire support \u2014 useful for punishing camping. Only applies to capturable checkpoints.",
+  "尚未啟用 — 請至少勾選一個可佔領據點": "Not enabled \u2014 check at least one capturable checkpoint",
+  "啟用範圍與觸發機率": "Enabled Scope & Trigger Chance",
+  "觸發機率": "Trigger Chance",
+  "最短觸發間隔（秒）": "Min Trigger Interval (sec)",
+  "最長觸發間隔（秒）": "Max Trigger Interval (sec)",
+  "反擊強度（重生速率）": "Counter Attack Strength (respawn rate)",
+  "突襲增援兵力": "Surprise Reinforcements",
+  "突襲兵力人數": "Surprise Force Size",
+  "停用此突襲的地圖（關鍵字比對）": "Maps where this surprise attack is disabled (keyword match)",
+  "地圖名稱關鍵字，如 Ministry": "Map name keyword, e.g. Ministry",
+  "提示訊息": "Tip Messages",
+  "即將反擊 — 螢幕中央訊息": "About to Counter Attack \u2014 Center Screen Message",
+  "即將反擊 — 聊天室訊息": "About to Counter Attack \u2014 Chat Message",
+  "顯示聊天室版本（UseWillReCounterAttackTextMessage）": "Show chat version (UseWillReCounterAttackTextMessage)",
+  "反擊中 — 螢幕中央訊息": "Counter Attacking \u2014 Center Screen Message",
+  "反擊中 — 聊天室訊息": "Counter Attacking \u2014 Chat Message",
+  "顯示聊天室版本（UseBeingReCounterAttackTextMessage）": "Show chat version (UseBeingReCounterAttackTextMessage)",
+  "反擊時間與結束後行為": "Counter Attack Duration & Aftermath",
+  "反擊持續時間（秒）": "Counter Attack Duration (sec)",
+  "反擊結束後剩餘時間（秒）": "Remaining Round Time After Counter Attack (sec)",
+  "反擊結束後重生已陣亡玩家（RespawnTeamAfterReCounterAttack）": "Respawn dead players after the counter attack ends (RespawnTeamAfterReCounterAttack)",
+  "自訂火力支援（CustomFireSupport）": "Custom Fire Support (CustomFireSupport)",
+  "索引由 11 起自動編號（0–10 為官方內建，詳見下方參考表）。": "Indices are auto-numbered starting at 11 (0\u201310 are official built-ins \u2014 see the reference below).",
+  "貼上完整火力支援定義路徑": "Paste a full fire support definition path",
+  "顯示名稱，如 MyMLRS": "Display name, e.g. MyMLRS",
+  "完整路徑": "Full path",
+  "新增": "Add",
+  "復仇火力支援分組（RevengeFireSupportSet 0–5）": "Revenge Fire Support Groups (RevengeFireSupportSet 0\u20135)",
+  "分組完成後，回到「據點兵力配置」分頁，於各據點指定要套用第幾組（RFS）。": "Once grouped, go back to the \u201CCheckpoint Forces\u201D tab and assign which group (RFS) each checkpoint uses.",
+  "復仇火力支援 節奏設定": "Revenge Fire Support Timing",
+  "最少觸發次數": "Min Trigger Count",
+  "最多觸發次數": "Max Trigger Count",
+  "最短間隔（秒）": "Min Interval (sec)",
+  "最長間隔（秒）": "Max Interval (sec)",
+  "落點最大偏移（公分）": "Max Impact Offset (cm)",
+  "螢幕中央訊息": "Center Screen Message",
+  "聊天室訊息": "Chat Message",
+  "顯示螢幕中央訊息（UseRevengeFireSupportCenterMessage）": "Show center screen message (UseRevengeFireSupportCenterMessage)",
+  "顯示聊天室訊息（UseRevengeFireSupportTextMessage）": "Show chat message (UseRevengeFireSupportTextMessage)",
+  "+ 新增一列": "+ Add Row",
+  "警告訊息文字": "Warning message text",
+
+  // Panel: Spawn Armaments
+  "據點軍需品（Objective Spawn Armaments）": "Spawn Armaments (Objective Spawn Armaments)",
+  "玩家攻擊可摧毀式據點時，於周圍隨機生成的彈藥箱、架槍或武器箱。建議只套用在 Destructible Objective，避免給可佔領據點過大防守優勢。":
+    "Ammo crates, mounted guns, or weapon crates randomly spawned around a checkpoint while players attack it. Recommended for Destructible Objectives only, to avoid giving capturable checkpoints too big a defensive edge.",
+  "尚未啟用 — 請至少勾選一個據點": "Not enabled \u2014 check at least one checkpoint",
+  "軍需品類型": "Armament Types",
+  "套用據點": "Applied Checkpoints",
+  "數量與距離": "Count & Distance",
+  "最少生成數": "Min Spawn Count",
+  "最多生成數": "Max Spawn Count",
+  "最短距離（公分）": "Min Distance (cm)",
+  "最長距離（公分）": "Max Distance (cm)",
+
+  // Panel: Door Traps
+  "門陷阱（Objective Door Traps）": "Door Traps (Objective Door Traps)",
+  "在據點周遭一定範圍內的門上隨機佈置陷阱，玩家靠近時才會實際生成。⚠️ 請勿與 NiceThrow 等模組同時使用，持續掃描偵測會嚴重影響用戶端 FPS。":
+    "Randomly places traps on doors within a set range of a checkpoint; traps only actually spawn once a player gets close. \u26A0\uFE0F Don't use this alongside mods like NiceThrow \u2014 the constant scan/detection can badly hurt client FPS.",
+  "陷阱類型": "Trap Types",
+  "行為設定": "Behavior Settings",
+  "僅在關閉且完好的門上生成（OnlyClosedDoor）": "Only spawn on closed, intact doors (OnlyClosedDoor)",
+  "生成機率": "Spawn Chance",
+  "生成範圍（公分）": "Spawn Range (cm)",
+  "AI 迴避機率": "AI Avoidance Chance",
+
+  // Panel: Threat FS
+  "威脅火力支援（Threat Fire Supports）": "Threat Fire Support (Threat Fire Supports)",
+  "當玩家過於集中或特定兵種存活時，敵方會呼叫火力支援反制，逼玩家分散或轉移陣地。":
+    "When players cluster too closely, or a specific class is still alive, the enemy calls in fire support to counter it \u2014 forcing players to spread out or relocate.",
+  "尚未啟用 — 請至少選擇一種火力支援": "Not enabled \u2014 select at least one fire support type",
+  "啟用的火力支援": "Enabled Fire Support",
+  "基本條件": "Basic Conditions",
+  "觸發所需最少存活玩家": "Min Players Alive to Trigger",
+  "各火力支援的觸發機率": "Per-Support Trigger Chance",
+  "各火力支援的每次呼叫次數（選填）": "Per-Support Call-in Count (optional)",
+  "各火力支援的警告訊息（選填）": "Per-Support Warning Message (optional)",
+  "優先鎖定的友軍職業": "Priority Target Classes",
+  "找不到存活的指定職業時，改用下方的集群偵測條件。": "If none of the specified classes are alive, falls back to the cluster-detection conditions below.",
+  "職業關鍵字，如 Sniper": "Class keyword, e.g. Sniper",
+  "集群人數門檻": "Cluster Player Threshold",
+  "集群偵測半徑（公分）": "Cluster Detection Radius (cm)",
+
+  // Panel: HQ FS
+  "HQ 火力支援（HQ Fire Supports）": "HQ Fire Support (HQ Fire Supports)",
+  "玩家完成指定據點後，授權職業可在聊天室輸入指令向 HQ 申請一次性火力支援，並選擇落點位置。":
+    "After players complete a specified checkpoint, authorized classes can type a command in chat to request a one-time fire support from HQ and choose the impact location.",
+  "尚未啟用 — 請至少勾選一個觸發據點": "Not enabled \u2014 check at least one trigger checkpoint",
+  "觸發據點與準備時間": "Trigger Checkpoints & Prep Time",
+  "通知延遲（秒）": "Notify Delay (sec)",
+  "申請等待時間（秒）": "Request Wait Time (sec)",
+  "可申請的火力支援與指令對照": "Requestable Fire Support & Command Mapping",
+  "左欄輸入玩家要在聊天室輸入的指令文字（例如 %JDAM），右欄選擇對應的火力支援。": "Left column: the command text players type in chat (e.g. %JDAM). Right column: the corresponding fire support.",
+  "各火力支援的警告訊息 / 呼叫次數（選填）": "Per-Support Warning Message / Call-in Count (optional)",
+  "授權可申請的職業": "Authorized Requesting Classes",
+  "職業關鍵字，如 Commander": "Class keyword, e.g. Commander",
+  "提示文字": "Prompt Text",
+  "核准通知（前段）": "Approval Notice (opening)",
+  "核准通知（時間後綴）": "Approval Notice (time suffix)",
+  "逾時未申請": "Request Timed Out",
+  "指令清單提示": "Command List Prompt",
+  "已收到申請": "Request Received",
+  "回覆無效": "Invalid Reply",
+  "催促": "Hurry-Up",
+  "詢問落點": "Ask for Location",
+  "支援即將抵達": "Support Inbound",
+  "落點輸入錯誤": "Wrong Location Input",
+
+  // Panel: Output
+  "按下「重新產生」以套用最新編輯內容，再複製或下載成品，貼進伺服器設定檔（如 Mutators.ini）對應區塊。":
+    "Click \u201CRegenerate\u201D to apply your latest edits, then copy or download the result and paste it into the matching section of your server config (e.g. Mutators.ini).",
+  "重新產生設定": "Regenerate Config",
+  "複製全部": "Copy All",
+  "下載 .ini": "Download .ini",
+
+  // Footer
+  "提醒：": "Note:",
+  "只是預先載入其他模組資源的路徑參照 — 目標模組仍必須實際安裝在伺服器上才會生效；每個集合內的元素不可重複。此工具僅在本機瀏覽器中運算與產生文字，不會上傳任何內容。":
+    "are just path references for preloading another mod's resources \u2014 the target mod must still actually be installed on the server for it to take effect; elements within each set must be unique. This tool runs and generates text entirely in your local browser and uploads nothing.",
+
+  // Transient / dialog strings
+  "已複製 ✓": "Copied \u2713",
+  "匯入失敗：JSON 格式不正確。": "Import failed: the JSON file is not valid.",
+  "確定要清空所有設定嗎？此動作無法復原。": "Are you sure you want to reset everything? This cannot be undone.",
+  "翻譯功能載入逾時，請確認網路連線後再試一次（此功能需要連上 translate.google.com）。": "The translator took too long to load. Please check your internet connection and try again (this feature needs access to translate.google.com).",
+
+  // Page brand heading
+  "Advanced Checkpoint 設定產生器": "Advanced Checkpoint Config Generator",
+
+  // Select option fallback
+  "未使用（-1）": "Not used (-1)"
+};
+
+/* 由 DICT 自動反推出「英文 -> 中文」的還原字典，只用來把靜態 chrome
+   （頂端列、footer、標題）從英文精準還原回中文；分頁面板內容一律
+   靠呼叫 renderAll() 重新以中文渲染，不需要靠這個還原字典處理。 */
+var DICT_REVERSE = {};
+for (var __k in DICT){
+  if (Object.prototype.hasOwnProperty.call(DICT, __k)) DICT_REVERSE[DICT[__k]] = __k;
+}
+
+/* 樣板字串（含變數／數字）的規則式翻譯，依序嘗試；這些只會出現在
+   由 renderAll() 管轄的分頁面板內容中，因此不需要對應的還原規則。 */
+var DICT_PATTERNS = [
+  [/^已啟用 · (\d+) 個觸發據點$/, function(m,n){ return "Enabled \u00B7 " + n + " trigger checkpoint" + (n==1?"":"s"); }],
+  [/^已啟用 · (\d+) 個據點$/, function(m,n){ return "Enabled \u00B7 " + n + " checkpoint" + (n==1?"":"s"); }],
+  [/^已啟用 · (\d+) 種$/, function(m,n){ return "Enabled \u00B7 " + n + " type" + (n==1?"":"s"); }],
+  [/^(\d+) 行 · (\d+) 字元$/, function(m,a,b){ return a + " line" + (a==1?"":"s") + " \u00B7 " + b + " character" + (b==1?"":"s"); }],
+  [/^據點「(.+)」設定$/, function(m,k){ return "\u201C" + k + "\u201D Checkpoint Settings"; }],
+  [/^出現兵種（SoldiersObj(.+)）$/, function(m,k){ return "Soldiers Present (SoldiersObj" + k + ")"; }],
+  [/^Obj(.+)_RFS（復仇火力支援分組，於「反擊機制」分頁定義各組內容）$/, function(m,k){ return "Obj" + k + "_RFS (revenge fire support group \u2014 defined in the Counter Attack tab)"; }],
+  [/^內建 0–10：/, function(){ return "Built-in 0\u201310: "; }],
+  [/^(.+)（(\d+) 個路徑）$/, function(m,name,n){ return name + " (" + n + " path" + (n=="1"?"":"s") + ")"; }],
+  [/^(.+)（已加入）$/, function(m,prefix){ return prefix + " (added)"; }]
+];
+
+function T(str){
+  if (currentLang !== "en") return str;
+  if (Object.prototype.hasOwnProperty.call(DICT, str)) return DICT[str];
+  for (var i=0; i<DICT_PATTERNS.length; i++){
+    var rule = DICT_PATTERNS[i];
+    if (rule[0].test(str)) return str.replace(rule[0], rule[1]);
+  }
+  return str;
+}
+window.T = T;
+
+function shouldSkipElement(el){
+  if (!el || el.nodeType !== 1) return false;
+  var tag = el.tagName;
+  if (tag === "SCRIPT" || tag === "STYLE") return true;
+  if (el.id && (EXCLUDE_IDS[el.id] || el.id === "google_translate_element")) return true;
+  if (el.classList && (el.classList.contains("goog-te-banner-frame") || el.classList.contains("skiptranslate"))) return true;
+  return false;
+}
+
+function translateAttrWith(lookupFn, el, attr){
+  if (!el.hasAttribute || !el.hasAttribute(attr)) return;
+  var val = el.getAttribute(attr);
+  var trimmed = val.trim();
+  if (!trimmed) return;
+  var translated = lookupFn(trimmed);
+  if (translated !== trimmed){
+    el.setAttribute(attr, val.replace(trimmed, translated));
+  }
+}
+
+function walkAndTranslate(root, lookupFn){
+  if (!root) return;
+  if (root.nodeType === 3){
+    var trimmed = root.textContent.trim();
+    if (!trimmed) return;
+    var translated = lookupFn(trimmed);
+    if (translated !== trimmed){
+      root.textContent = root.textContent.replace(trimmed, translated);
+    }
+    return;
+  }
+  if (root.nodeType !== 1) return;
+  if (shouldSkipElement(root)) return;
+  translateAttrWith(lookupFn, root, "placeholder");
+  translateAttrWith(lookupFn, root, "title");
+  var child = root.firstChild;
+  while (child){
+    walkAndTranslate(child, lookupFn);
+    child = child.nextSibling;
+  }
+}
+
+/* 正向翻譯（中 -> 英），支援樣板規則 */
+function translateSubtree(root){ walkAndTranslate(root, T); }
+
+/* 反向還原（英 -> 中），僅做精確字串比對（頂端列／footer 專用，
+   面板內容一律交給 renderAll() 直接以中文重繪，不會走到這個函式） */
+function reverseTranslateSubtree(root){
+  walkAndTranslate(root, function(str){
+    return Object.prototype.hasOwnProperty.call(DICT_REVERSE, str) ? DICT_REVERSE[str] : str;
+  });
+}
+
+/* 監看後續動態渲染出的新內容，翻譯模式下即時翻譯 */
+var observer = new MutationObserver(function(mutations){
+  if (currentLang !== "en") return;
+  mutations.forEach(function(m){
+    if (m.type === "childList"){
+      m.addedNodes.forEach(function(node){ translateSubtree(node); });
+    } else if (m.type === "characterData"){
+      translateSubtree(m.target);
+    }
+  });
+});
+observer.observe(document.body, { childList:true, subtree:true, characterData:true });
+
+function updateToggleUI(){
+  document.querySelectorAll("#langToggle .lang-btn").forEach(function(btn){
+    btn.classList.toggle("active", btn.getAttribute("data-lang") === currentLang);
+  });
+}
+
+function setLanguage(lang){
+  if (lang === currentLang) return;
+  currentLang = lang;
+  if (lang === "zh"){
+    // 分頁面板內容：直接請主程式以中文重新渲染一次，保證完全還原
+    if (typeof window.__appRenderAll === "function") window.__appRenderAll();
+    // 頂端列／footer／標題等靜態 chrome：用還原字典從英文精準換回中文
+    reverseTranslateSubtree(document.body);
+    document.title = ORIGINAL_TITLE;
+    document.documentElement.lang = "zh-Hant";
+  } else {
+    translateSubtree(document.body);
+    document.title = T(ORIGINAL_TITLE);
+    document.documentElement.lang = "en";
+  }
+  updateToggleUI();
+}
+window.__setLanguage = setLanguage;
+
+var toggle = document.getElementById("langToggle");
+if (toggle){
+  toggle.querySelectorAll(".lang-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){ setLanguage(btn.getAttribute("data-lang")); });
+  });
+}
+updateToggleUI();
 
 })();
 </script>
