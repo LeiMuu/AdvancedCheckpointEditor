@@ -143,6 +143,7 @@ input,select,textarea,button{font-family:var(--font-body);color:var(--text);}
   background:var(--bg-input);border:1px solid var(--border);border-radius:5px;
   padding:8px 10px;font-size:13px;width:100%;
 }
+.fld select{white-space:nowrap;overflow:hidden;text-overflow:clip;}
 .fld input:focus,.fld select:focus,.fld textarea:focus,.chip-input:focus{outline:2px solid var(--accent-dim);outline-offset:0;border-color:var(--accent);}
 .fld textarea{resize:vertical;min-height:56px;font-family:var(--font-mono);font-size:12px;line-height:1.5;}
 .checkline{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);margin-bottom:10px;}
@@ -169,6 +170,11 @@ input,select,textarea,button{font-family:var(--font-body);color:var(--text);}
   padding:7px 9px;font-size:12.5px;flex:1;min-width:140px;
 }
 .chip-preset-select{background:var(--bg-input);border:1px solid var(--border);border-radius:5px;padding:7px 9px;font-size:12px;color:var(--text-dim);max-width:220px;}
+.group-label-input{
+  background:var(--bg-input);border:1px solid var(--border);border-radius:5px;
+  padding:6px 9px;font-size:12px;width:100%;box-sizing:border-box;margin-bottom:8px;color:var(--text);
+}
+.group-label-input::placeholder{color:var(--text-faint);}
 
 /* checkbox grid (letters / fixed lists) */
 .cbgrid{display:flex;flex-wrap:wrap;gap:6px;}
@@ -634,9 +640,10 @@ function googleTranslateElementInit(){
         <div id="hqCmdMapList"></div>
       </div>
       <div class="card">
-        <h3>各火力支援的警告訊息 / 呼叫次數（選填）</h3>
+        <h3>各火力支援的警告訊息（選填）</h3>
         <div id="hqMsgList"></div>
-        <div style="height:10px;"></div>
+        <div style="height:18px;"></div>
+        <h3>各火力支援的呼叫次數（選填）</h3>
         <div id="hqCallinList"></div>
       </div>
       <div class="card">
@@ -962,6 +969,7 @@ function freshState(){
       custom:[],
       useClassChangeHint:false,
       removeSets:{0:[],1:[],2:[],3:[],4:[],5:[]},
+      removeSetLabels:{0:"",1:"",2:"",3:"",4:"",5:""},
       containSets:{0:[],1:[],2:[],3:[],4:[],5:[]},
       tips:[]
     },
@@ -978,6 +986,7 @@ function freshState(){
       afterRoundTime:300, respawnAfter:true,
       customFS:[],
       revengeSets:{0:[],1:[],2:[],3:[],4:[],5:[]},
+      revengeSetLabels:{0:"",1:"",2:"",3:"",4:"",5:""},
       rfsCountMin:1, rfsCountMax:5, rfsTimeMin:5, rfsTimeMax:60, rfsRadius:1000.0,
       useRfsCenter:true, rfsCenter:DEFAULT_MSGS.rfs_center,
       useRfsText:true, rfsText:DEFAULT_MSGS.rfs_text
@@ -1039,6 +1048,7 @@ function classDisplayForIndex(idx){
 function renderChipList(containerId, arr, opts){
   const container = $(containerId);
   if(!container) return;
+  const rerender = opts.onRerender || function(){ renderChipList(containerId, arr, opts); };
   container.innerHTML = "";
   const wrap = document.createElement("div");
   wrap.className = "chipwrap" + (opts.stacked ? " stacked" : "");
@@ -1052,7 +1062,7 @@ function renderChipList(containerId, arr, opts){
     chip.appendChild(span);
     const x = document.createElement("button");
     x.type = "button"; x.className = "chip-x"; x.textContent = "×";
-    x.onclick = function(){ arr.splice(idx,1); renderChipList(containerId, arr, opts); if(opts.onChange) opts.onChange(); };
+    x.onclick = function(){ arr.splice(idx,1); rerender(); if(opts.onChange) opts.onChange(); };
     chip.appendChild(x);
     wrap.appendChild(chip);
   });
@@ -1073,7 +1083,7 @@ function renderChipList(containerId, arr, opts){
       if (opts.type === "int"){ v = parseInt(v,10); if (Number.isNaN(v)) return; }
       arr.push(v);
       input.value = "";
-      renderChipList(containerId, arr, opts);
+      rerender();
       if(opts.onChange) opts.onChange();
     }
     btn.onclick = doAdd;
@@ -1093,7 +1103,7 @@ function renderChipList(containerId, arr, opts){
       if (opts.onPreset) opts.onPreset(chosen);
       else arr.push(chosen.value);
       sel.value = "";
-      renderChipList(containerId, arr, opts);
+      rerender();
       if(opts.onChange) opts.onChange();
     };
     row.appendChild(sel);
@@ -1109,7 +1119,8 @@ function renderIndexClassChipList(containerId, arr, onChange){
     hideAddRow: true,
     stacked: true,
     display: function(val){ return classDisplayForIndex(val); },
-    onChange: onChange
+    onChange: onChange,
+    onRerender: function(){ renderIndexClassChipList(containerId, arr, onChange); }
   });
   const container = $(containerId);
   const row = document.createElement("div");
@@ -1382,6 +1393,15 @@ function renderAiClasses(){
     h.style.fontSize="12px"; h.style.color="var(--text-dim)"; h.style.marginBottom="6px";
     h.textContent = "ClassesToRemoveSet" + i;
     box.appendChild(h);
+    const labelInput = document.createElement("input");
+    labelInput.type = "text";
+    labelInput.className = "group-label-input";
+    labelInput.placeholder = "分組註解（選填，會顯示在分組上方）";
+    labelInput.value = state.ai.removeSetLabels[i] || "";
+    (function(i){
+      labelInput.oninput = function(){ state.ai.removeSetLabels[i] = labelInput.value; renderCheckpointsTab(); };
+    })(i);
+    box.appendChild(labelInput);
     const listDiv = document.createElement("div");
     listDiv.id = "rmset_" + i;
     box.appendChild(listDiv);
@@ -1407,7 +1427,7 @@ function renderAiClasses(){
     (function(i){
       renderChipList("ctset_"+i, state.ai.containSets[i], {
         type:"string", placeholder:"關鍵字，如 Rifleman",
-        onChange:function(){ renderNav(); }
+        onChange:function(){ renderNav(); renderCheckpointsTab(); }
       });
     })(i);
   }
@@ -1430,8 +1450,8 @@ function renderCheckpointsTab(){
     '<div class="fld"><label>FriendlySoldiers_CRS</label><select id="friendlyCRS"></select></div>'+
     '<div class="fld"><label>FriendlySoldiers_RCC</label><select id="friendlyRCC"></select></div>';
   fw.appendChild(crsRow);
-  fillSetSelect("friendlyCRS", state.bot.friendlyCRS, function(v){ state.bot.friendlyCRS=v; renderNav(); });
-  fillSetSelect("friendlyRCC", state.bot.friendlyRCC, function(v){ state.bot.friendlyRCC=v; renderNav(); });
+  fillSetSelect("friendlyCRS", state.bot.friendlyCRS, function(v){ state.bot.friendlyCRS=v; renderNav(); }, state.ai.removeSetLabels);
+  fillSetSelect("friendlyRCC", state.bot.friendlyRCC, function(v){ state.bot.friendlyRCC=v; renderNav(); }, getContainSetLabels());
 
   const dial = $("checkpointDial");
   dial.innerHTML = "";
@@ -1449,10 +1469,24 @@ function renderCheckpointsTab(){
   renderCheckpointDetail();
 }
 
-function fillSetSelect(id, value, onChange){
+/* RemoveClassesContaining 的下拉選單標籤直接取自使用者已輸入的關鍵字本身
+   （不像 CRS/RFS 需要額外的註解欄位，因為關鍵字本身就有描述性） */
+function getContainSetLabels(){
+  const labels = {};
+  for (let i=0;i<6;i++){
+    labels[i] = state.ai.containSets[i].length ? state.ai.containSets[i].join(", ") : "";
+  }
+  return labels;
+}
+
+function fillSetSelect(id, value, onChange, labelsObj){
   const el = $(id);
   let html = '<option value="-1">未使用（-1）</option>';
-  for (let i=0;i<6;i++) html += '<option value="'+i+'">'+i+'</option>';
+  for (let i=0;i<6;i++){
+    const hasLabel = labelsObj && labelsObj[i] && labelsObj[i].trim();
+    const text = hasLabel ? (i + " · " + labelsObj[i].trim()) : String(i);
+    html += '<option value="'+i+'">'+escapeHtml(text)+'</option>';
+  }
   el.innerHTML = html;
   el.value = value;
   el.onchange = function(){ onChange(parseInt(el.value,10)); };
@@ -1476,19 +1510,18 @@ function renderCheckpointDetail(){
   renderIndexClassChipList("cpIds", L.ids, function(){ renderNav(); renderCheckpointsTab(); });
 
   const g = document.createElement("div");
-  g.className = "grid3";
   g.innerHTML =
     '<div class="fld"><label>Obj'+key+'_CRS</label><select id="cpCRS"></select></div>'+
     '<div class="fld"><label>Obj'+key+'_RCC</label><select id="cpRCC"></select></div>' +
     (isLetter ? '<div class="fld"><label>Obj'+key+'_EFT</label><select id="cpEFT"></select></div>' : '');
   wrap.appendChild(g);
-  fillSetSelect("cpCRS", L.crs, function(v){ L.crs=v; renderNav(); });
-  fillSetSelect("cpRCC", L.rcc, function(v){ L.rcc=v; renderNav(); });
+  fillSetSelect("cpCRS", L.crs, function(v){ L.crs=v; renderNav(); }, state.ai.removeSetLabels);
+  fillSetSelect("cpRCC", L.rcc, function(v){ L.rcc=v; renderNav(); }, getContainSetLabels());
   if (isLetter){
     const eftEl = $("cpEFT");
     let html = '<option value="-1">未使用（-1）</option>';
     state.ai.tips.forEach(function(tip, i){
-      const preview = String(tip).replace(/<[^>]+>/g,"").slice(0,28);
+      const preview = String(tip).replace(/<[^>]+>/g,"");
       html += '<option value="'+i+'">'+i+" · "+escapeHtml(preview)+'</option>';
     });
     eftEl.innerHTML = html;
@@ -1501,12 +1534,21 @@ function renderCheckpointDetail(){
     rfsBox.className = "fld";
     rfsBox.innerHTML = '<label>Obj'+key+'_RFS（復仇火力支援分組，於「反擊機制」分頁定義各組內容）</label><select id="cpRFS"></select>';
     wrap.appendChild(rfsBox);
-    fillSetSelect("cpRFS", L.rfs, function(v){ L.rfs=v; renderNav(); });
+    fillSetSelect("cpRFS", L.rfs, function(v){ L.rfs=v; renderNav(); }, state.re.revengeSetLabels);
   }
 }
 
 /* ---- 反擊機制 ---- */
 /* ---- 自訂火力支援庫（獨立分頁，不受反擊機制是否啟用影響）---- */
+/* 自訂火力支援清單一旦變動，威脅火力支援／HQ 火力支援／反擊機制（復仇分組）
+   三個分頁的下拉選單／勾選清單都需要同步更新，否則使用者若先造訪過這些分頁，
+   之後在「自訂火力支援」新增/移除項目，那些分頁會顯示過期的舊清單。 */
+function refreshFireSupportConsumers(){
+  renderRecounter();
+  renderThreatFS();
+  renderHQFS();
+}
+
 function renderFireSupportLib(){
   renderChipList("customFireSupportList", state.re.customFS, {
     hideAddRow:true,
@@ -1521,7 +1563,7 @@ function renderFireSupportLib(){
       const idx = state.re.customFS.indexOf(val);
       return (11+idx) + " · " + (val.name||"") + " · " + val.path.split("/").pop();
     },
-    onChange:function(){ renderFireSupportLib(); renderNav(); }
+    onChange:function(){ renderFireSupportLib(); renderNav(); refreshFireSupportConsumers(); }
   });
   const fsWrap = $("customFireSupportList");
   const fsRow = document.createElement("div");
@@ -1534,7 +1576,7 @@ function renderFireSupportLib(){
     const path = $("fsPathInput").value.trim();
     if (!path) return;
     state.re.customFS.push({name:name, path:path});
-    renderFireSupportLib(); renderNav();
+    renderFireSupportLib(); renderNav(); refreshFireSupportConsumers();
   };
   fsRow.appendChild(fsBtn);
   fsWrap.appendChild(fsRow);
@@ -1588,6 +1630,15 @@ function renderRecounter(){
     h.style.fontSize="12px"; h.style.color="var(--text-dim)"; h.style.marginBottom="6px";
     h.textContent = "RevengeFireSupportSet" + i;
     box.appendChild(h);
+    const labelInput = document.createElement("input");
+    labelInput.type = "text";
+    labelInput.className = "group-label-input";
+    labelInput.placeholder = "分組註解（選填，會顯示在分組上方）";
+    labelInput.value = state.re.revengeSetLabels[i] || "";
+    (function(i){
+      labelInput.oninput = function(){ state.re.revengeSetLabels[i] = labelInput.value; renderCheckpointDetail(); };
+    })(i);
+    box.appendChild(labelInput);
     const listDiv = document.createElement("div");
     listDiv.id = "revset_" + i;
     box.appendChild(listDiv);
@@ -1690,7 +1741,7 @@ function renderThreatFS(){
   on("tfTimeMax","input",function(e){ state.threatFS.timeMax = parseInt(e.target.value,10)||360; });
 
   renderFsKVList("tfChanceList", state.threatFS.triggerChance, "number");
-  renderFsKVList("tfCallinList", state.threatFS.callinPreTimes, "text");
+  renderFsKVList("tfCallinList", state.threatFS.callinPreTimes, "text", "呼叫次數");
   renderFsKVList("tfMsgList", state.threatFS.textMsg, "text", "警告訊息文字");
 
   renderChipList("tfPrimaryClass", state.threatFS.primaryClass, {type:"string", placeholder:"職業關鍵字，如 Sniper"});
@@ -1704,7 +1755,7 @@ function renderThreatFS(){
 }
 function renderThreatFSDependents(){
   renderFsKVList("tfChanceList", state.threatFS.triggerChance, "number");
-  renderFsKVList("tfCallinList", state.threatFS.callinPreTimes, "text");
+  renderFsKVList("tfCallinList", state.threatFS.callinPreTimes, "text", "呼叫次數");
   renderFsKVList("tfMsgList", state.threatFS.textMsg, "text", "警告訊息文字");
 }
 
@@ -1722,7 +1773,7 @@ function renderHQFS(){
 
   renderCmdMapList("hqCmdMapList", state.hq.cmdMap);
   renderFsKVList("hqMsgList", state.hq.textMsg, "text", "警告訊息文字");
-  renderFsKVList("hqCallinList", state.hq.callinPreTimes, "text");
+  renderFsKVList("hqCallinList", state.hq.callinPreTimes, "text", "呼叫次數");
 
   renderChipList("hqAuthClass", state.hq.authClass, {type:"string", placeholder:"職業關鍵字，如 Commander"});
 
@@ -1773,7 +1824,10 @@ function genAiClasses(){
   lines.push("");
   lines.push("UseClassChangeHint=" + (state.ai.useClassChangeHint ? "True" : "False"));
   for (let i=0;i<6;i++){
-    if (state.ai.removeSets[i].length) lines.push("ClassesToRemoveSet"+i+"="+tuple(state.ai.removeSets[i]));
+    if (state.ai.removeSets[i].length){
+      if (state.ai.removeSetLabels[i] && state.ai.removeSetLabels[i].trim()) lines.push(";"+state.ai.removeSetLabels[i].trim());
+      lines.push("ClassesToRemoveSet"+i+"="+tuple(state.ai.removeSets[i]));
+    }
   }
   for (let i=0;i<6;i++){
     if (state.ai.containSets[i].length) lines.push("RemoveClassesContaining"+i+"="+strTuple(state.ai.containSets[i]));
@@ -1845,7 +1899,10 @@ function genRecounter(){
   lines.push("RespawnTeamAfterReCounterAttack="+(state.re.respawnAfter?"True":"False"));
   lines.push("");
   for (let i=0;i<6;i++){
-    if (state.re.revengeSets[i].length) lines.push("RevengeFireSupportSet"+i+"="+tuple(state.re.revengeSets[i]));
+    if (state.re.revengeSets[i].length){
+      if (state.re.revengeSetLabels[i] && state.re.revengeSetLabels[i].trim()) lines.push(";"+state.re.revengeSetLabels[i].trim());
+      lines.push("RevengeFireSupportSet"+i+"="+tuple(state.re.revengeSets[i]));
+    }
   }
   lines.push("");
   const order = ["Default"].concat(LETTERS);
@@ -2049,6 +2106,8 @@ on("importFile","change", function(e){
       Object.keys(fresh.bot.labels).forEach(function(k){
         if (!state.bot.labels[k]) state.bot.labels[k] = emptyLabelObj();
       });
+      if (!state.re.revengeSetLabels) state.re.revengeSetLabels = fresh.re.revengeSetLabels;
+      if (!state.ai.removeSetLabels) state.ai.removeSetLabels = fresh.ai.removeSetLabels;
       currentCheckpointLabel = "Default";
       renderAll();
     }catch(err){
@@ -2181,6 +2240,7 @@ var DICT = {
   "突襲兵力人數": "Surprise Force Size",
   "停用此突襲的地圖（關鍵字比對）": "Maps where this surprise attack is disabled (keyword match)",
   "地圖名稱關鍵字，如 Ministry": "Map name keyword, e.g. Ministry",
+  "分組註解（選填，會顯示在分組上方）": "Group comment (optional, shown above the group)",
   "提示訊息": "Tip Messages",
   "即將反擊 — 螢幕中央訊息": "About to Counter Attack \u2014 Center Screen Message",
   "即將反擊 — 聊天室訊息": "About to Counter Attack \u2014 Chat Message",
@@ -2216,6 +2276,7 @@ var DICT = {
   "顯示聊天室訊息（UseRevengeFireSupportTextMessage）": "Show chat message (UseRevengeFireSupportTextMessage)",
   "+ 新增一列": "+ Add Row",
   "警告訊息文字": "Warning message text",
+  "呼叫次數": "Call-in count",
 
   // Panel: Spawn Armaments
   "據點軍需品（Objective Spawn Armaments）": "Spawn Armaments (Objective Spawn Armaments)",
@@ -2251,6 +2312,7 @@ var DICT = {
   "觸發所需最少存活玩家": "Min Players Alive to Trigger",
   "各火力支援的觸發機率": "Per-Support Trigger Chance",
   "各火力支援的每次呼叫次數（選填）": "Per-Support Call-in Count (optional)",
+  "各火力支援的呼叫次數（選填）": "Per-Support Call-in Count (optional)",
   "各火力支援的警告訊息（選填）": "Per-Support Warning Message (optional)",
   "優先鎖定的友軍職業": "Priority Target Classes",
   "找不到存活的指定職業時，改用下方的集群偵測條件。": "If none of the specified classes are alive, falls back to the cluster-detection conditions below.",
@@ -2268,7 +2330,6 @@ var DICT = {
   "申請等待時間（秒）": "Request Wait Time (sec)",
   "可申請的火力支援與指令對照": "Requestable Fire Support & Command Mapping",
   "左欄輸入玩家要在聊天室輸入的指令文字（例如 %JDAM），右欄選擇對應的火力支援。": "Left column: the command text players type in chat (e.g. %JDAM). Right column: the corresponding fire support.",
-  "各火力支援的警告訊息 / 呼叫次數（選填）": "Per-Support Warning Message / Call-in Count (optional)",
   "授權可申請的職業": "Authorized Requesting Classes",
   "職業關鍵字，如 Commander": "Class keyword, e.g. Commander",
   "提示文字": "Prompt Text",
