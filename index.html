@@ -704,7 +704,8 @@ const BUILTIN_FIRE_SUPPORTS = [
 
 const SPAWN_ARMAMENT_TYPES = [
   {idx:0,name:"Pickup_Ammo_Base"},{idx:1,name:"MountedWeapon_DShK"},{idx:2,name:"MountedWeapon_DShK_Shield"},
-  {idx:3,name:"MountedWeapon_GAU19"},{idx:4,name:"MountedWeapon_M2HB_Shield"},{idx:5,name:"RandomWeaponCrate"}
+  {idx:3,name:"MountedWeapon_GAU19"},{idx:4,name:"MountedWeapon_M2HB_Shield"},{idx:5,name:"RandomWeaponCrate"},
+  {idx:6,name:"RandomWeaponCrate_Explosives"}
 ];
 
 const DOOR_TRAP_TYPES = [
@@ -991,7 +992,7 @@ function freshState(){
       useRfsCenter:true, rfsCenter:DEFAULT_MSGS.rfs_center,
       useRfsText:true, rfsText:DEFAULT_MSGS.rfs_text
     },
-    spawnArm:{ useTypes:[0,1,2,3,4,5], useObj:[], numMin:0, numMax:4, distMin:250, distMax:1000 },
+    spawnArm:{ useTypes:[0,1,2,3,4,5,6], useObj:[], numMin:0, numMax:4, distMin:250, distMax:1000 },
     doorTraps:{ useTypes:[0,1,2,3,4,5,6], useObj:[], onlyClosed:true, spawnChance:1.0, spawnDist:2000.0, aiAvoid:1.0 },
     threatFS:{
       useList:[], minAlive:3, triggerChance:[], callinPreTimes:[], textMsg:[],
